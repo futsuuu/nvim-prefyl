@@ -1,0 +1,9 @@
+{
+    "runtime": {
+        "version": "LuaJIT"
+    },
+    "diagnostics": {
+        "unusedLocalExclude": ["_*"],
+        "disable": ["redefined-local"]
+    }
+}
