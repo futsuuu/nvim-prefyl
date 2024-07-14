@@ -12,7 +12,7 @@ function M.install(config)
     ---@type prefyl.compiler.Installer[]
     local installers = vim.iter(config.plugins)
         :map(function(_name, spec) ---@param spec prefyl.compiler.config.PluginSpec
-            return spec.url and Git.new(spec.dir, spec.url)
+            return spec.enabled and spec.url and Git.new(spec.dir, spec.url)
         end)
         :filter(function(i) ---@param i prefyl.compiler.Installer?
             if i then

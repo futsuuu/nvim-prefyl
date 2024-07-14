@@ -251,12 +251,14 @@ local function compile(config)
     ]])
 
     for name, spec in pairs(plugins) do
-        c = c
-            .. do_(
-                ("local spec = rawget(config.plugins, %q)\n"):format(name)
-                    .. initialize_plugin(name, spec, "spec")
-            )
-            .. "\n"
+        if spec.enabled then
+            c = c
+                .. do_(
+                    ("local spec = rawget(config.plugins, %q)\n"):format(name)
+                        .. initialize_plugin(name, spec, "spec")
+                )
+                .. "\n"
+        end
     end
 
     return c
