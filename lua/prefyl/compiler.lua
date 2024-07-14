@@ -173,11 +173,27 @@ local function load_rtdirs(rtdirs)
     return c
 end
 
+---@param deps string[]
+---@return string
+local function load_dependencies(deps)
+    return vim.iter(deps)
+        :map(function(s) ---@param s string
+            return ("load_plugin(%q)\n"):format(s)
+        end)
+        :join("")
+end
+
 ---@param name string
 ---@param rtdirs prefyl.compiler.RuntimeDir[]
+---@param deps string[]
 ---@return string
-local function initialize_rtdirs(name, rtdirs)
-    return function_(string.format("plugin_loaders.%s", name), {}, load_rtdirs(rtdirs))
+local function initialize_rtdirs(name, rtdirs, deps)
+    local c = function_(
+        ("plugin_loaders.%s"):format(name),
+        {},
+        load_dependencies(deps) .. load_rtdirs(rtdirs)
+    )
+    c = c
         .. vim.iter(rtdirs)
             :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
                 return vim.tbl_keys(rtdir.luamodules)
@@ -194,6 +210,7 @@ local function initialize_rtdirs(name, rtdirs)
             :fold("", function(acc, colorscheme) ---@param colorscheme string
                 return acc .. register_colorscheme(name, colorscheme)
             end)
+    return c
 end
 
 ---@param config prefyl.compiler.Config
@@ -225,7 +242,7 @@ local function compile(config)
                 initialize_rtdirs(name, {
                     RuntimeDir.new(spec.dir),
                     RuntimeDir.new(spec.dir / "after"),
-                })
+                }, spec.deps)
             )
             .. "\n"
     end
