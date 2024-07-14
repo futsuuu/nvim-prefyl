@@ -44,6 +44,12 @@ local function if_(cond, body)
     return ("if %s then\n"):format(cond) .. str.indent(body, 4) .. "end\n"
 end
 
+---@param body string
+---@return string
+local function do_(body)
+    return "do\n" .. str.indent(body, 4) .. "end\n"
+end
+
 local c = [[
 -- vim:readonly:nowrap
 ---@diagnostic disable: unused-local, unused-function
@@ -56,8 +62,8 @@ local plugin_loaders = {} ---@type table<string, function>
 local function load_plugin(plugin_name)
     local loader = rawget(plugin_loaders, plugin_name)
     if loader then
-        loader()
         rawset(plugin_loaders, plugin_name, nil)
+        loader()
     end
 end
 
@@ -184,14 +190,21 @@ local function load_dependencies(deps)
 end
 
 ---@param name string
----@param rtdirs prefyl.compiler.RuntimeDir[]
----@param deps string[]
+---@param spec prefyl.compiler.config.PluginSpec
+---@param spec_var string
 ---@return string
-local function initialize_rtdirs(name, rtdirs, deps)
+local function initialize_plugin(name, spec, spec_var)
+    local rtdirs = {
+        RuntimeDir.new(spec.dir),
+        RuntimeDir.new(spec.dir / "after"),
+    }
     local c = function_(
-        ("plugin_loaders.%s"):format(name),
+        "plugin_loaders." .. name,
         {},
-        load_dependencies(deps) .. load_rtdirs(rtdirs)
+        load_dependencies(spec.deps)
+            .. (spec_var .. ".config_pre()\n")
+            .. load_rtdirs(rtdirs)
+            .. (spec_var .. ".config()\n")
     )
     c = c
         .. vim.iter(rtdirs)
@@ -210,6 +223,8 @@ local function initialize_rtdirs(name, rtdirs, deps)
             :fold("", function(acc, colorscheme) ---@param colorscheme string
                 return acc .. register_colorscheme(name, colorscheme)
             end)
+        .. (spec_var .. ".init()\n")
+    c = if_(spec_var .. ".cond", c)
     return c
 end
 
@@ -237,12 +252,9 @@ local function compile(config)
 
     for name, spec in pairs(plugins) do
         c = c
-            .. if_(
-                ("rawget(config.plugins, %q).cond"):format(name),
-                initialize_rtdirs(name, {
-                    RuntimeDir.new(spec.dir),
-                    RuntimeDir.new(spec.dir / "after"),
-                }, spec.deps)
+            .. do_(
+                ("local spec = rawget(config.plugins, %q)\n"):format(name)
+                    .. initialize_plugin(name, spec, "spec")
             )
             .. "\n"
     end
