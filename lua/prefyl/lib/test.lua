@@ -107,6 +107,9 @@ end
 ---@param left any
 ---@param right any
 function M.assert_eq(left, right)
+    if not is_called() then
+        return
+    end
     assert(
         vim.deep_equal(left, right),
         "assertion failed:\n left: " .. display(left) .. "\nright: " .. display(right)

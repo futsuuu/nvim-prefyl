@@ -60,6 +60,17 @@ function M:__eq(other)
     local other = M.try_new(other)
     return other and self.path == other.path or false
 end
+
+test.group("equal operator", function()
+    test.test("vim.list_contains", function()
+        vim.list_contains({ M.new("p") }, M.new("p"))
+    end)
+
+    test.test("test.assert_eq", function()
+        test.assert_eq(M.new("p"), M.new("p"))
+    end)
+end)
+
 ---@private
 ---@param other string | prefyl.Path
 ---@return boolean
@@ -107,21 +118,22 @@ end)
 
 ---@return string
 function M:tostring()
-    return (self.path:gsub("/", SEPARATOR))
+    if SEPARATOR == "/" then
+        return self.path
+    else
+        return (self.path:gsub("/", SEPARATOR))
+    end
 end
 
 ---@param ... string | prefyl.Path
 ---@return prefyl.Path
 function M:join(...)
-    local components = vim
-        .iter({ self.path, ... })
-        ---@param component string
-        :filter(function(component)
-            return component:len() > 0
+    local components = vim.iter({ self.path, ... })
+        :filter(function(component) ---@param component string
+            return 0 < component:len()
         end)
         :map(M.new)
-        ---@param path prefyl.Path
-        :map(function(path)
+        :map(function(path) ---@param path prefyl.Path
             return path.path
         end)
         :totable()
@@ -241,6 +253,12 @@ end)
 ---@return self
 function M:ensure_dir()
     vim.fn.mkdir(self.path, "p")
+    return self
+end
+
+---@return self
+function M:ensure_parent_dir()
+    (self / ".."):ensure_dir()
     return self
 end
 
