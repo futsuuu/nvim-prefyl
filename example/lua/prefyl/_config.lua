@@ -8,6 +8,7 @@ plugins.prefyl = {
 
 plugins.kanagawa = {
     url = "https://github.com/rebelot/kanagawa.nvim",
+    lazy = true,
 }
 
 plugins.telescope = {
@@ -18,14 +19,17 @@ plugins.telescope = {
 
 plugins.neogit = {
     url = "https://github.com/NeogitOrg/neogit",
+    cmd = { "Neogit" },
 }
 
 plugins.lspconfig = {
     url = "https://github.com/neovim/nvim-lspconfig",
+    lazy = true,
 }
 
 plugins.plenary = {
     url = "https://github.com/nvim-lua/plenary.nvim",
+    lazy = true,
 }
 
 return {

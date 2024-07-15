@@ -10,6 +10,7 @@ local M = {}
 ---@field dir prefyl.Path
 ---@field enabled boolean
 ---@field deps string[]
+---@field lazy boolean
 ---@field cmd string[]?
 
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
@@ -51,12 +52,17 @@ function M.load()
         if spec.cmd and 0 < #spec.cmd then
             cmd = spec.cmd
         end
+        local lazy = spec.lazy
+        if lazy == nil then
+            lazy = cmd ~= nil
+        end
         ---@type prefyl.compiler.config.PluginSpec
         compiler_config.plugins[name] = {
             dir = spec.dir and Path.new(spec.dir) or (PLUGIN_ROOT / name),
             url = spec.url,
             deps = spec.deps,
             enabled = spec.enabled,
+            lazy = lazy,
             cmd = cmd,
         }
     end

@@ -17,6 +17,7 @@ local default_config = {
 ---@field enabled boolean?
 ---@field deps string[]?
 ---@field cond boolean?
+---@field lazy boolean?
 ---@field cmd string[]?
 ---@field init function?
 ---@field config_pre function?
@@ -28,6 +29,7 @@ local default_config = {
 ---@field enabled boolean
 ---@field deps string[]
 ---@field cond boolean
+---@field lazy boolean?
 ---@field cmd string[]?
 ---@field init function
 ---@field config_pre function

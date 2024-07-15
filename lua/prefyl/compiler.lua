@@ -191,22 +191,27 @@ local function initialize_plugin(name, spec, spec_var)
         RuntimeDir.new(spec.dir),
         RuntimeDir.new(spec.dir / "after"),
     }
-    local c = "local handler_interrupters = {} ---@type function[]\n"
+    local c = ""
+    local interrupt_handlers = ""
+    if spec.lazy then
+        c = "local handler_interrupters = {} ---@type function[]\n"
+        interrupt_handlers = str.dedent([[
+        for _, fn in ipairs(handler_interrupters) do
+            fn()
+        end
+        ]])
+    end
     c = c
         .. setup_plugin_loader(
             name,
-            str.dedent([[
-            for _, fn in ipairs(handler_interrupters) do
-                fn()
-            end
-            ]])
+            interrupt_handlers
                 .. load_dependencies(spec.deps)
                 .. (spec_var .. ".config_pre()\n")
                 .. load_rtdirs(rtdirs)
                 .. (spec_var .. ".config()\n")
         )
 
-    if spec.cmd then
+    if spec.lazy then
         c = c
             .. str.dedent([[
             local function plugin_loader()
@@ -278,6 +283,16 @@ local function compile(config)
         end
         c = c .. "\n"
     end
+
+    c = c
+        .. vim.iter(plugins)
+            :filter(function(_name, spec) ---@param spec prefyl.compiler.config.PluginSpec
+                return not spec.lazy
+            end)
+            :map(function(name, _spec)
+                return ("load_plugin(%q)\n"):format(name)
+            end)
+            :join("")
 
     return c
 end
