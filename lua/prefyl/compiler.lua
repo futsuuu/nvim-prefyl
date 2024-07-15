@@ -18,22 +18,6 @@ local DEFAULT_RUNTIMEPATHS = vim.iter({
     :filter(Path.exists)
     :totable()
 
----@param name string
----@param args string[]
----@param body string
----@return string
-local function function_(name, args, body)
-    local c
-    local args = table.concat(args, ", ")
-    if name:find("[%.:]") == nil then
-        c = ("local function %s(%s)\n"):format(name, args)
-    else
-        c = ("function %s(%s)\n"):format(name, args)
-    end
-    c = c .. str.indent(body, 4) .. "end\n"
-    return c
-end
-
 ---@param cond string
 ---@param body string
 ---@return string
@@ -68,6 +52,15 @@ local function load_plugin(plugin_name)
 end
 
 ]]
+
+---@param name string
+---@param body string
+---@return string
+local function setup_plugin_loader(name, body)
+    return ("rawset(plugin_loaders, %q, function()\n"):format(name)
+        .. str.indent(body, 4)
+        .. "end)\n"
+end
 
 c = c
     .. [[
@@ -198,14 +191,37 @@ local function initialize_plugin(name, spec, spec_var)
         RuntimeDir.new(spec.dir),
         RuntimeDir.new(spec.dir / "after"),
     }
-    local c = function_(
-        "plugin_loaders." .. name,
-        {},
-        load_dependencies(spec.deps)
-            .. (spec_var .. ".config_pre()\n")
-            .. load_rtdirs(rtdirs)
-            .. (spec_var .. ".config()\n")
-    )
+    local c = "local handler_interrupters = {} ---@type function[]\n"
+    c = c
+        .. setup_plugin_loader(
+            name,
+            str.dedent([[
+            for _, fn in ipairs(handler_interrupters) do
+                fn()
+            end
+            ]])
+                .. load_dependencies(spec.deps)
+                .. (spec_var .. ".config_pre()\n")
+                .. load_rtdirs(rtdirs)
+                .. (spec_var .. ".config()\n")
+        )
+
+    if spec.cmd then
+        c = c
+            .. str.dedent([[
+            local function plugin_loader()
+                load_plugin(%q)
+            end
+            ]]):format(name)
+    end
+
+    if spec.cmd then
+        c = c .. 'local cmd = require("prefyl.handler.cmd")\n'
+        for _, cmd in ipairs(spec.cmd) do
+            c = c .. ("table.insert(handler_interrupters, cmd(plugin_loader, %q))\n"):format(cmd)
+        end
+    end
+
     c = c
         .. vim.iter(rtdirs)
             :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
@@ -223,8 +239,8 @@ local function initialize_plugin(name, spec, spec_var)
             :fold("", function(acc, colorscheme) ---@param colorscheme string
                 return acc .. register_colorscheme(name, colorscheme)
             end)
-        .. (spec_var .. ".init()\n")
-    c = if_(spec_var .. ".cond", c)
+
+    c = c .. (spec_var .. ".init()\n")
     return c
 end
 
@@ -255,10 +271,12 @@ local function compile(config)
             c = c
                 .. do_(
                     ("local spec = rawget(config.plugins, %q)\n"):format(name)
-                        .. initialize_plugin(name, spec, "spec")
+                        .. if_("spec.cond", initialize_plugin(name, spec, "spec"))
                 )
-                .. "\n"
+        else
+            c = c .. ("-- %q is disabled\n"):format(name)
         end
+        c = c .. "\n"
     end
 
     return c

@@ -13,6 +13,7 @@ plugins.kanagawa = {
 plugins.telescope = {
     url = "https://github.com/nvim-telescope/telescope.nvim",
     deps = { "plenary" },
+    cmd = { "Telescope" },
 }
 
 plugins.neogit = {

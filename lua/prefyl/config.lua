@@ -14,9 +14,10 @@ local default_config = {
 ---@class prefyl.config.PluginSpec
 ---@field url string?
 ---@field dir string?
----@field cond boolean?
 ---@field enabled boolean?
 ---@field deps string[]?
+---@field cond boolean?
+---@field cmd string[]?
 ---@field init function?
 ---@field config_pre function?
 ---@field config function?
@@ -24,9 +25,10 @@ local default_config = {
 ---@class prefyl.config.PluginSpecWithDefault
 ---@field url string?
 ---@field dir string?
----@field cond boolean
 ---@field enabled boolean
 ---@field deps string[]
+---@field cond boolean
+---@field cmd string[]?
 ---@field init function
 ---@field config_pre function
 ---@field config function
