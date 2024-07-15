@@ -62,40 +62,4 @@ test.test("indent", function()
     )
 end)
 
----@param str string
----@return string
-function M.escape(str)
-    str = str:gsub("%%", "%%%%")
-    for _, s in ipairs({ "^", "$", "(", ")", ".", "[", "]", "*", "+", "-", "?" }) do
-        str = str:gsub("%" .. s, "%%" .. s)
-    end
-    return str
-end
-
-test.test("escape", function()
-    test.assert_eq("%[%]", M.escape("[]"))
-    test.assert_eq("", ("[hel]lo* wo-rld?"):gsub(M.escape("[hel]lo* wo-rld?"), ""))
-end)
-
----@param str string
----@param vars table<string, string|number>
----@return string
-function M.format(str, vars)
-    for w in str:gmatch("%%%a?{%g%g-}") do
-        local seq, var = w:match("(%%%a?){(%g%g-)}") ---@type string, string
-        local repl
-        if seq == "%" then
-            repl = vars[var]
-        else
-            repl = string.format(seq, vars[var])
-        end
-        str = str:gsub(M.escape(w), repl)
-    end
-    return str
-end
-
-test.test("format", function()
-    test.assert_eq("Hello(world)!", M.format("%{msg}(%{name})!", { msg = "Hello", name = "world" }))
-end)
-
 return M
