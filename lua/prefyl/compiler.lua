@@ -95,23 +95,6 @@ end
 
 c = c
     .. [[
-local colorscheme_owners = {} ---@type table<string, string>
-vim.api.nvim_create_autocmd("ColorSchemePre", {
-    callback = function(cx)
-        load_plugin(rawget(colorscheme_owners, cx.match))
-    end,
-})
-
-]]
----@param plugin_name string
----@param colorscheme string
----@return string
-local function register_colorscheme(plugin_name, colorscheme)
-    return ("rawset(colorscheme_owners, %q, %q)\n"):format(colorscheme, plugin_name)
-end
-
-c = c
-    .. [[
 ---@param path string
 local function source(path)
     vim.api.nvim_cmd({ cmd = "source", args = { path } }, {})
@@ -227,6 +210,23 @@ local function initialize_plugin(name, spec, spec_var)
         end
     end
 
+    ---@type string[]
+    local colorschemes = vim.iter(rtdirs)
+        :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            return rtdir.colorschemes
+        end)
+        :flatten()
+        :totable()
+    if spec.lazy and 0 < #colorschemes then
+        c = c .. 'local colorscheme = require("prefyl.handler.colorscheme")\n'
+        for _, colorscheme in ipairs(colorschemes) do
+            c = c
+                .. ("table.insert(handler_interrupters, colorscheme(plugin_loader, %q))\n"):format(
+                    colorscheme
+                )
+        end
+    end
+
     c = c
         .. vim.iter(rtdirs)
             :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
@@ -235,14 +235,6 @@ local function initialize_plugin(name, spec, spec_var)
             :flatten()
             :fold("", function(acc, luamodule) ---@param luamodule string
                 return acc .. register_luamodule(name, luamodule)
-            end)
-        .. vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
-                return rtdir.colorschemes
-            end)
-            :flatten()
-            :fold("", function(acc, colorscheme) ---@param colorscheme string
-                return acc .. register_colorscheme(name, colorscheme)
             end)
 
     c = c .. (spec_var .. ".init()\n")
