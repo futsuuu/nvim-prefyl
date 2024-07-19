@@ -5,18 +5,31 @@ local RuntimeDir = require("prefyl.compiler.rtdir")
 
 local M = {}
 
+---@return prefyl.Path[]
+local function default_runtimepaths()
+    local ps = {
+        Path.new(vim.env.VIMRUNTIME),
+        Path.new(vim.env.VIM) / ".." / ".." / "lib" / "nvim",
+        Path.prefyl_root,
+    }
+    ---@param path prefyl.Path?
+    local function push(path)
+        if path then
+            table.insert(ps, 1, path)
+            table.insert(ps, path / "after")
+        end
+    end
+    push(Path.stdpath.data_dirs[2] and (Path.stdpath.data_dirs[2] / "site"))
+    push(Path.stdpath.data_dirs[1] and (Path.stdpath.data_dirs[1] / "site"))
+    push(Path.stdpath.data / "site")
+    push(Path.stdpath.config_dirs[2])
+    push(Path.stdpath.config_dirs[1])
+    push(Path.stdpath.config)
+    return vim.iter(ps):filter(Path.exists):totable()
+end
+
 ---@type prefyl.Path[]
-local DEFAULT_RUNTIMEPATHS = vim.iter({
-    Path.prefyl_root,
-    Path.stdpath.config,
-    Path.stdpath.data / "site",
-    Path.new(vim.env.VIMRUNTIME),
-    Path.new(vim.env.VIM) / ".." / ".." / "lib" / "nvim",
-    Path.stdpath.data / "site" / "after",
-    Path.stdpath.config / "after",
-})
-    :filter(Path.exists)
-    :totable()
+local DEFAULT_RUNTIMEPATHS = default_runtimepaths()
 
 ---@param cond string
 ---@param body string
