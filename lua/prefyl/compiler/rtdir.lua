@@ -87,7 +87,8 @@ end)
 
 ---@class prefyl.compiler.RuntimeDir
 ---@field dir prefyl.Path
----@field init_files prefyl.Path[]
+---@field plugin_files prefyl.Path[]
+---@field ftdetect_files prefyl.Path[]
 ---@field luamodules table<string, string>
 ---@field colorschemes string[]
 local M = {}
@@ -110,9 +111,8 @@ function M.new(dir)
     ---@type prefyl.compiler.RuntimeDir
     return {
         dir = dir,
-        init_files = vim.iter({ files[DirKind.PLUGIN], files[DirKind.FTDETECT] })
-            :flatten()
-            :totable(),
+        plugin_files = files[DirKind.PLUGIN],
+        ftdetect_files = files[DirKind.FTDETECT],
         luamodules = vim.iter(files[DirKind.LUA]):fold({}, function(acc, path)
             acc[get_luamodule(dir, path)] = dumped_modules[path]
             return acc

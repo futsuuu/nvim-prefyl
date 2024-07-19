@@ -112,6 +112,24 @@ local function source(path)
 end
 
 c = c
+    .. [[
+---@param group string
+local function augroup(group)
+    vim.api.nvim_cmd({ cmd = "augroup", args = { group } }, {})
+end
+
+]]
+---@param group string
+---@param body string
+local function augroup(group, body)
+    if body:find("%g") ~= nil then
+        return ("augroup(%q)\n"):format(group) .. body .. 'augroup("END")\n'
+    else
+        return ""
+    end
+end
+
+c = c
     .. ('vim.api.nvim_set_option_value("runtimepath", %q, {})\n'):format(
         vim.iter(DEFAULT_RUNTIMEPATHS):map(tostring):join(",")
     )
@@ -149,9 +167,26 @@ local function load_rtdirs(rtdirs)
         end
         c = c .. vim.iter(rtdir.luamodules):map(setup_luamodule):join("")
     end
-    for _, rtdir in ipairs(rtdirs) do
-        c = c .. vim.iter(rtdir.init_files):map(source):join("")
-    end
+
+    c = c
+        .. vim.iter(rtdirs)
+            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                return rtdir.plugin_files
+            end)
+            :flatten()
+            :map(source)
+            :join("")
+        .. augroup(
+            "filetypedetect",
+            vim.iter(rtdirs)
+                :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                    return rtdir.ftdetect_files
+                end)
+                :flatten()
+                :map(source)
+                :join("")
+        )
+
     return c
 end
 
