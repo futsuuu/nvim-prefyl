@@ -63,9 +63,8 @@ vim.api.nvim_set_option_value("runtimepath", %q, {})
 
 c = c
     .. ([[
----@module "prefyl.runtime"
-local rt = loadstring(%q)()
-rawset(package.loaded, "prefyl.runtime", rt)
+rawset(package.preload, "prefyl.runtime", loadstring(%q))
+local rt = require("prefyl.runtime")
 
 ]]):format(
         string.dump(
@@ -73,6 +72,12 @@ rawset(package.loaded, "prefyl.runtime", rt)
             true
         )
     )
+
+---@param plugin_name string
+---@return string
+local function load_plugin(plugin_name)
+    return ("rt.load_plugin(%q)\n"):format(plugin_name)
+end
 
 ---@param name string
 ---@param body string
@@ -191,11 +196,7 @@ end
 ---@param deps string[]
 ---@return string
 local function load_dependencies(deps)
-    return vim.iter(deps)
-        :map(function(s) ---@param s string
-            return ("rt.load_plugin(%q)\n"):format(s)
-        end)
-        :join("")
+    return vim.iter(deps):map(load_plugin):join("")
 end
 
 ---@param name string
@@ -285,7 +286,7 @@ local function compile(config)
                 return not spec.lazy
             end)
             :map(function(name, _spec)
-                return ("rt.load_plugin(%q)\n"):format(name)
+                return load_plugin(name)
             end)
             :join("")
 
