@@ -41,25 +41,32 @@ end)
 ---@param size integer
 function M.indent(str, size)
     local indent = (" "):rep(size)
-    return indent .. str:gsub("\n([^\n]+)", "\n" .. indent .. "%1")
+    local r = {}
+    local skip = false
+    for line in vim.gsplit(str, "\n") do
+        if not skip and line ~= "" then
+            line = indent .. line
+        end
+        table.insert(r, line)
+        skip = line:sub(-1) == "\\"
+    end
+    return table.concat(r, "\n")
 end
 
 test.test("indent", function()
-    test.assert_eq(
-        [[
-        hello
-
-            world
-        ]],
-        M.indent(
-            [[
-    hello
+    local before = [[
+    hello\
+,
 
         world
-    ]],
-            4
-        )
-    )
+    ]]
+    local after = [[
+        hello\
+,
+
+            world
+        ]]
+    test.assert_eq(after, M.indent(before, 4))
 end)
 
 return M
