@@ -12,8 +12,7 @@ vim.api.nvim_create_autocmd("ColorSchemePre", {
 
 ---@param plugin_loader function
 ---@param name string
----@return function
+---@return function?
 return function(plugin_loader, name)
     rawset(owners, name, plugin_loader)
-    return function() end
 end

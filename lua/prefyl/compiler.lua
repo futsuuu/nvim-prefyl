@@ -81,6 +81,13 @@ local function set_plugin_loader(name, body)
     return ("rt.set_plugin_loader(%q, function()\n"):format(name) .. str.indent(body, 4) .. "end)\n"
 end
 
+---@param module_name string
+---@param chunk string
+---@return string
+local function set_luachunk(module_name, chunk)
+    return ("rt.set_luachunk(%q, %q)\n"):format(module_name, chunk)
+end
+
 ---@param plugin_name string
 ---@param module_name string
 ---@return string
@@ -92,11 +99,16 @@ local function handle_luamodule(plugin_name, module_name)
     end
 end
 
----@param module_name string
----@param chunk string
----@return string
-local function set_luachunk(module_name, chunk)
-    return ("rt.set_luachunk(%q, %q)\n"):format(module_name, chunk)
+---@param plugin_name string
+---@param colorscheme string
+local function handle_colorscheme(plugin_name, colorscheme)
+    return ("rt.handle_colorscheme(%q, %q)\n"):format(plugin_name, colorscheme)
+end
+
+---@param plugin_name string
+---@param user_command string
+local function handle_user_command(plugin_name, user_command)
+    return ("rt.handle_user_command(%q, %q)\n"):format(plugin_name, user_command)
 end
 
 ---@param path prefyl.Path
@@ -195,68 +207,41 @@ local function initialize_plugin(name, spec, spec_var)
         RuntimeDir.new(spec.dir),
         RuntimeDir.new(spec.dir / "after"),
     }
-    local c = ""
-    local interrupt_handlers = ""
-    if spec.lazy then
-        c = "local handler_interrupters = {} ---@type function[]\n"
-        interrupt_handlers = str.dedent([[
-        for _, fn in ipairs(handler_interrupters) do
-            fn()
-        end
-        ]])
-    end
-    c = c
-        .. set_plugin_loader(
-            name,
-            interrupt_handlers
-                .. load_dependencies(spec.deps)
-                .. (spec_var .. ".config_pre()\n")
-                .. load_rtdirs(rtdirs)
-                .. (spec_var .. ".config()\n")
-        )
+    local c = set_plugin_loader(
+        name,
+        load_dependencies(spec.deps)
+            .. (spec_var .. ".config_pre()\n")
+            .. load_rtdirs(rtdirs)
+            .. (spec_var .. ".config()\n")
+    )
 
     if spec.lazy then
-        c = c
-            .. str.dedent([[
-            local function plugin_loader()
-                rt.load_plugin(%q)
-            end
-            ]]):format(name)
-    end
-
-    if spec.cmd then
-        c = c .. 'local cmd = require("prefyl.handler.cmd")\n'
-        for _, cmd in ipairs(spec.cmd) do
-            c = c .. ("table.insert(handler_interrupters, cmd(plugin_loader, %q))\n"):format(cmd)
+        for _, cmd in ipairs(spec.cmd or {}) do
+            c = c .. handle_user_command(name, cmd)
         end
-    end
 
-    ---@type string[]
-    local colorschemes = vim.iter(rtdirs)
-        :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
-            return rtdir.colorschemes
-        end)
-        :flatten()
-        :totable()
-    if spec.lazy and 0 < #colorschemes then
-        c = c .. 'local colorscheme = require("prefyl.handler.colorscheme")\n'
+        ---@type string[]
+        local colorschemes = vim.iter(rtdirs)
+            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                return rtdir.colorschemes
+            end)
+            :flatten()
+            :totable()
         for _, colorscheme in ipairs(colorschemes) do
-            c = c
-                .. ("table.insert(handler_interrupters, colorscheme(plugin_loader, %q))\n"):format(
-                    colorscheme
-                )
+            c = c .. handle_colorscheme(name, colorscheme)
         end
-    end
 
-    c = c
-        .. vim.iter(rtdirs)
+        ---@type string[]
+        local luamodules = vim.iter(rtdirs)
             :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
                 return vim.tbl_keys(rtdir.luamodules)
             end)
             :flatten()
-            :fold("", function(acc, luamodule) ---@param luamodule string
-                return acc .. handle_luamodule(name, luamodule)
-            end)
+            :totable()
+        for _, luamodule in ipairs(luamodules) do
+            c = c .. handle_luamodule(name, luamodule)
+        end
+    end
 
     c = c .. (spec_var .. ".init()\n")
     return c
@@ -267,7 +252,7 @@ end
 ---@return string
 local function initialize_plugin_if_needed(name, spec)
     if not spec.enabled then
-        return ("-- %q is disabled"):format(name)
+        return ("-- %q is disabled\n"):format(name)
     end
     local c = str.dedent([[
     local spec = rawget(require("prefyl.config").plugins, %q)
