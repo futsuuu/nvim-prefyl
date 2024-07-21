@@ -51,122 +51,95 @@ local c = [[
 -- vim:readonly:nowrap
 ---@diagnostic disable: unused-local, unused-function
 
-vim.api.nvim_set_option_value("loadplugins", false, {})
-vim.api.nvim_set_var("did_load_ftdetect", 1)
-
-local plugin_loaders = {} ---@type table<string, function>
----@param plugin_name string?
-local function load_plugin(plugin_name)
-    local loader = rawget(plugin_loaders, plugin_name)
-    if loader then
-        rawset(plugin_loaders, plugin_name, nil)
-        loader()
-    end
-end
-
 ]]
+
+c = c
+    .. ([[
+vim.api.nvim_set_var("did_load_ftdetect", 1)
+vim.api.nvim_set_option_value("loadplugins", false, {})
+vim.api.nvim_set_option_value("runtimepath", %q, {})
+
+]]):format(vim.iter(DEFAULT_RUNTIMEPATHS):map(tostring):join(","))
+
+c = c
+    .. ([[
+---@module "prefyl.runtime"
+local rt = loadstring(%q)()
+rawset(package.loaded, "prefyl.runtime", rt)
+
+]]):format(
+        string.dump(
+            assert(loadfile((Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"):tostring())),
+            true
+        )
+    )
 
 ---@param name string
 ---@param body string
 ---@return string
-local function setup_plugin_loader(name, body)
-    return ("rawset(plugin_loaders, %q, function()\n"):format(name)
-        .. str.indent(body, 4)
-        .. "end)\n"
+local function set_plugin_loader(name, body)
+    return ("rt.set_plugin_loader(%q, function()\n"):format(name) .. str.indent(body, 4) .. "end)\n"
 end
 
-c = c
-    .. [[
-local luamodules = {} ---@type table<string, string>
-local luamodule_owners = {} ---@type table<string, string>
----@param modname string
----@return string | function
-local function luamodule_loader(modname)
-    load_plugin(rawget(luamodule_owners, modname))
-    local bytecode = rawget(luamodules, modname)
-    if not bytecode then
-        return "\n\tno cache '" .. modname .. "'"
-    end
-    local chunk, err = loadstring(bytecode, "b")
-    return chunk or ("\n\t" .. err)
-end
-table.insert(package.loaders, 2, luamodule_loader)
-
-]]
 ---@param plugin_name string
 ---@param module_name string
 ---@return string
-local function register_luamodule(plugin_name, module_name)
-    return ("rawset(luamodule_owners, %q, %q)\n"):format(module_name, plugin_name)
+local function handle_luamodule(plugin_name, module_name)
+    if module_name == "prefyl.runtime" then
+        return ""
+    else
+        return ("rt.handle_luamodule(%q, %q)\n"):format(plugin_name, module_name)
+    end
 end
+
 ---@param module_name string
----@param bytecode string
+---@param chunk string
 ---@return string
-local function setup_luamodule(module_name, bytecode)
-    return (("rawset(luamodules, %q, %q)\n"):format(module_name, bytecode):gsub("\\\n", "\\n"))
+local function set_luachunk(module_name, chunk)
+    return ("rt.set_luachunk(%q, %q)\n"):format(module_name, chunk)
 end
 
-c = c
-    .. [[
----@param path string
-local function source(path)
-    vim.api.nvim_cmd({ cmd = "source", args = { path } }, {})
-end
-
-]]
 ---@param path prefyl.Path
 ---@return string
 local function source(path)
     if path:exists() then
-        return ("source(%q)\n"):format(path)
+        return ('vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})\n'):format(path)
     else
         return ""
     end
 end
 
-c = c
-    .. [[
----@param group string
-local function augroup(group)
-    vim.api.nvim_cmd({ cmd = "augroup", args = { group } }, {})
-end
-
-]]
 ---@param group string
 ---@param body string
 local function augroup(group, body)
     if body:find("%g") ~= nil then
-        return ("augroup(%q)\n"):format(group) .. body .. 'augroup("END")\n'
+        return str.dedent([[
+        vim.api.nvim_cmd({ cmd = "augroup", args = { %q } }, {})
+        %s
+        vim.api.nvim_cmd({ cmd = "augroup", args = { "END" } }, {})
+        ]]):format(group, body)
     else
         return ""
     end
 end
 
-c = c
-    .. ('vim.api.nvim_set_option_value("runtimepath", %q, {})\n'):format(
-        vim.iter(DEFAULT_RUNTIMEPATHS):map(tostring):join(",")
-    )
-    .. [[
----@param path string
-local function prepend_to_rtp(path)
-    local rtp = vim.api.nvim_get_option_value("runtimepath", {})
-    vim.api.nvim_set_option_value("runtimepath", path .. "," .. rtp, {})
-end
----@param path string
-local function append_to_rtp(path)
-    local rtp = vim.api.nvim_get_option_value("runtimepath", {})
-    vim.api.nvim_set_option_value("runtimepath", rtp .. "," .. path, {})
-end
-
-]]
 ---@param path prefyl.Path
 ---@return string
 local function add_to_rtp(path)
-    if path:exists() then
-        return path:ends_with("after") and ("append_to_rtp(%q)\n"):format(path)
-            or ("prepend_to_rtp(%q)\n"):format(path)
-    else
+    if not path:exists() then
         return ("-- %q does not exist\n"):format(path)
+    end
+    local get_rtp = 'vim.api.nvim_get_option_value("runtimepath", {})'
+    if path:ends_with("after") then
+        return ('vim.api.nvim_set_option_value("runtimepath", %s .. %q, {})\n'):format(
+            get_rtp,
+            "," .. path:tostring()
+        )
+    else
+        return ('vim.api.nvim_set_option_value("runtimepath", %q .. %s, {})\n'):format(
+            path:tostring() .. ",",
+            get_rtp
+        )
     end
 end
 
@@ -178,7 +151,7 @@ local function load_rtdirs(rtdirs)
         if not vim.list_contains(DEFAULT_RUNTIMEPATHS, rtdir.dir) then
             c = c .. add_to_rtp(rtdir.dir)
         end
-        c = c .. vim.iter(rtdir.luamodules):map(setup_luamodule):join("")
+        c = c .. vim.iter(rtdir.luamodules):map(set_luachunk):join("")
     end
 
     c = c
@@ -208,7 +181,7 @@ end
 local function load_dependencies(deps)
     return vim.iter(deps)
         :map(function(s) ---@param s string
-            return ("load_plugin(%q)\n"):format(s)
+            return ("rt.load_plugin(%q)\n"):format(s)
         end)
         :join("")
 end
@@ -233,7 +206,7 @@ local function initialize_plugin(name, spec, spec_var)
         ]])
     end
     c = c
-        .. setup_plugin_loader(
+        .. set_plugin_loader(
             name,
             interrupt_handlers
                 .. load_dependencies(spec.deps)
@@ -246,7 +219,7 @@ local function initialize_plugin(name, spec, spec_var)
         c = c
             .. str.dedent([[
             local function plugin_loader()
-                load_plugin(%q)
+                rt.load_plugin(%q)
             end
             ]]):format(name)
     end
@@ -282,11 +255,24 @@ local function initialize_plugin(name, spec, spec_var)
             end)
             :flatten()
             :fold("", function(acc, luamodule) ---@param luamodule string
-                return acc .. register_luamodule(name, luamodule)
+                return acc .. handle_luamodule(name, luamodule)
             end)
 
     c = c .. (spec_var .. ".init()\n")
     return c
+end
+
+---@param name string
+---@param spec prefyl.compiler.config.PluginSpec
+---@return string
+local function initialize_plugin_if_needed(name, spec)
+    if not spec.enabled then
+        return ("-- %q is disabled"):format(name)
+    end
+    local c = str.dedent([[
+    local spec = rawget(require("prefyl.config").plugins, %q)
+    ]]):format(name)
+    return do_(c .. if_("spec.cond", initialize_plugin(name, spec, "spec")))
 end
 
 ---@param config prefyl.compiler.Config
@@ -306,23 +292,7 @@ local function compile(config)
             return acc
         end)
 
-    c = c .. str.dedent([[
-    local config = require("prefyl.config").load()
-
-    ]])
-
-    for name, spec in pairs(plugins) do
-        if spec.enabled then
-            c = c
-                .. do_(
-                    ("local spec = rawget(config.plugins, %q)\n"):format(name)
-                        .. if_("spec.cond", initialize_plugin(name, spec, "spec"))
-                )
-        else
-            c = c .. ("-- %q is disabled\n"):format(name)
-        end
-        c = c .. "\n"
-    end
+    c = c .. vim.iter(plugins):map(initialize_plugin_if_needed):join("\n") .. "\n"
 
     c = c
         .. vim.iter(plugins)
@@ -330,16 +300,16 @@ local function compile(config)
                 return not spec.lazy
             end)
             :map(function(name, _spec)
-                return ("load_plugin(%q)\n"):format(name)
+                return ("rt.load_plugin(%q)\n"):format(name)
             end)
             :join("")
 
-    return c
+    return (c:gsub("\\\n", "\\n"))
 end
 
 ---@return string
 function M.compile()
-    local config = require("prefyl.compiler.config").load()
+    local config = require("prefyl.compiler.config")
     require("prefyl.compiler.installer").install(config)
     return compile(config)
 end

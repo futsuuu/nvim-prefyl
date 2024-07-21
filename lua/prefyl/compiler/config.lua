@@ -1,7 +1,5 @@
 local Path = require("prefyl.lib.path")
 
-local M = {}
-
 ---@class prefyl.compiler.Config
 ---@field plugins table<string, prefyl.compiler.config.PluginSpec>
 
@@ -16,8 +14,8 @@ local M = {}
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
 
 ---@return prefyl.compiler.Config
-function M.load()
-    local config = require("prefyl.config").load()
+local function load()
+    local config = require("prefyl.config")
 
     vim.validate({
         config = { config, { "t" } },
@@ -70,4 +68,4 @@ function M.load()
     return compiler_config
 end
 
-return M
+return load()

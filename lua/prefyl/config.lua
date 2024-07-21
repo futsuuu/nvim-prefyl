@@ -1,5 +1,3 @@
-local M = {}
-
 ---@class prefyl.Config
 ---@field plugins table<string, prefyl.config.PluginSpec>?
 
@@ -48,11 +46,7 @@ local default_plugin_spec = {
 }
 
 ---@return prefyl.ConfigWithDefault
-function M.load()
-    local config = package.loaded["prefyl._config"]
-    if config then
-        return config
-    end
+local function load()
     local s, config = pcall(require, "prefyl._config")
     if not s then
         return default_config
@@ -62,8 +56,7 @@ function M.load()
     for name, spec in pairs(config.plugins) do
         config.plugins[name] = vim.tbl_extend("keep", spec, default_plugin_spec)
     end
-    package.loaded["prefyl._config"] = config
     return config
 end
 
-return M
+return load()
