@@ -211,13 +211,13 @@ local function initialize_plugin(name, spec, spec_var)
     local c = set_plugin_loader(
         name,
         load_dependencies(spec.deps)
-            .. (spec_var .. ".config_pre()\n")
+            .. if_(("%s.config_pre"):format(spec_var), ("pcall(%s.config_pre)\n"):format(spec_var))
             .. load_rtdirs(rtdirs)
-            .. (spec_var .. ".config()\n")
+            .. if_(("%s.config"):format(spec_var), ("pcall(%s.config)\n"):format(spec_var))
     )
 
     if spec.lazy then
-        for _, cmd in ipairs(spec.cmd or {}) do
+        for _, cmd in ipairs(spec.cmd) do
             c = c .. handle_user_command(name, cmd)
         end
 
@@ -244,7 +244,7 @@ local function initialize_plugin(name, spec, spec_var)
         end
     end
 
-    c = c .. (spec_var .. ".init()\n")
+    c = c .. if_(("%s.init"):format(spec_var), ("pcall(%s.init)\n"):format(spec_var))
     return c
 end
 
@@ -258,7 +258,7 @@ local function initialize_plugin_if_needed(name, spec)
     local c = str.dedent([[
     local spec = rawget(require("prefyl.config").plugins, %q)
     ]]):format(name)
-    return do_(c .. if_("spec.cond", initialize_plugin(name, spec, "spec")))
+    return do_(c .. if_("spec.cond ~= false", initialize_plugin(name, spec, "spec")))
 end
 
 ---@param config prefyl.compiler.Config

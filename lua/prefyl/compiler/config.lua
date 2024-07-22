@@ -24,7 +24,7 @@ local function load()
         plugins = { config.plugins, { "t" } },
     })
     for name, spec in pairs(config.plugins) do
-        ---@cast spec prefyl.config.PluginSpecWithDefault
+        ---@cast spec prefyl.config.PluginSpec
         vim.validate({
             name = { name, "s" },
             [name] = { spec, "t" },
@@ -32,12 +32,14 @@ local function load()
         vim.validate({
             url = { spec.url, { "s", "nil" } },
             dir = { spec.dir, { "s", "nil" } },
-            cond = { spec.cond, { "b" } },
-            enabled = { spec.enabled, { "b" } },
-            deps = { spec.deps, { "t" } },
-            init = { spec.init, { "f" } },
-            config_pre = { spec.config_pre, { "f" } },
-            config = { spec.config, { "f" } },
+            enabled = { spec.enabled, { "b", "nil" } },
+            deps = { spec.deps, { "t", "nil" } },
+            cond = { spec.cond, { "b", "nil" } },
+            lazy = { spec.lazy, { "b", "nil" } },
+            cmd = { spec.cmd, { "t", "nil" } },
+            init = { spec.init, { "f", "nil" } },
+            config_pre = { spec.config_pre, { "f", "nil" } },
+            config = { spec.config, { "f", "nil" } },
         })
     end
 
@@ -46,20 +48,17 @@ local function load()
         plugins = {},
     }
     for name, spec in pairs(config.plugins) do
-        local cmd
-        if spec.cmd and 0 < #spec.cmd then
-            cmd = spec.cmd
-        end
+        local cmd = spec.cmd or {}
         local lazy = spec.lazy
         if lazy == nil then
-            lazy = cmd ~= nil
+            lazy = 0 < #cmd
         end
         ---@type prefyl.compiler.config.PluginSpec
         compiler_config.plugins[name] = {
             dir = spec.dir and Path.new(spec.dir) or (PLUGIN_ROOT / name),
             url = spec.url,
-            deps = spec.deps,
-            enabled = spec.enabled,
+            deps = spec.deps or {},
+            enabled = spec.enabled ~= false,
             lazy = lazy,
             cmd = cmd,
         }
