@@ -17,8 +17,40 @@ plugins.telescope = {
     cmd = { "Telescope" },
 }
 
+plugins.cmp = {
+    url = "https://github.com/hrsh7th/nvim-cmp",
+    lazy = true,
+    config = function()
+        local cmp = require("cmp")
+        cmp.setup({
+            sources = {
+                { name = "buffer" },
+            },
+        })
+        cmp.setup.cmdline(":", {
+            mapping = cmp.mapping.preset.cmdline(),
+            sources = cmp.config.sources({
+                { name = "cmdline" },
+            }),
+        })
+    end,
+}
+
+plugins.cmp_buffer = {
+    url = "https://github.com/hrsh7th/cmp-buffer",
+    deps = { "cmp" },
+    event = { "InsertEnter" },
+}
+
+plugins.cmp_cmdline = {
+    url = "https://github.com/hrsh7th/cmp-cmdline",
+    deps = { "cmp" },
+    event = { "CmdlineEnter" },
+}
+
 plugins.neogit = {
     url = "https://github.com/NeogitOrg/neogit",
+    deps = { "plenary" },
     cmd = { "Neogit" },
 }
 
