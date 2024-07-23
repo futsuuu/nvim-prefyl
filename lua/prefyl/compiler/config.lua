@@ -1,4 +1,5 @@
 local Path = require("prefyl.lib.path")
+local test = require("prefyl.lib.test")
 
 ---@class prefyl.compiler.Config
 ---@field plugins table<string, prefyl.compiler.config.PluginSpec>
@@ -9,9 +10,44 @@ local Path = require("prefyl.lib.path")
 ---@field enabled boolean
 ---@field deps string[]
 ---@field lazy boolean
----@field cmd string[]?
+---@field cmd string[]
+---@field event { event: string | string[], pattern: (string | string[])? }[]
 
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
+
+---@param event string
+---@return { event: string | string[], pattern: (string | string[])? }
+local function parse_event(event)
+    ---@type string, string?
+    local event, pattern = unpack(vim.split(event, " "))
+    local event = event:find(",") and vim.split(event, ",") or event
+    if type(event) == "table" and #event == 1 then
+        event = event[1]
+    end
+    local pattern = pattern and pattern:find(",") and vim.split(pattern, ",") or pattern
+    if type(pattern) == "table" and #pattern == 1 then
+        pattern = pattern[1]
+    end
+    return { event = event, pattern = pattern }
+end
+
+test.group("parse_event", function()
+    test.test("event only", function()
+        test.assert_eq({ event = "InsertEnter" }, parse_event("InsertEnter"))
+        test.assert_eq({ event = { "InsertEnter", "BufRead" } }, parse_event("InsertEnter,BufRead"))
+    end)
+
+    test.test("event and pattern", function()
+        test.assert_eq(
+            { event = "BufRead", pattern = "Cargo.toml" },
+            parse_event("BufRead Cargo.toml")
+        )
+        test.assert_eq(
+            { event = { "BufRead", "BufNewFile" }, pattern = { "*.txt", "*.md" } },
+            parse_event("BufRead,BufNewFile *.txt,*.md")
+        )
+    end)
+end)
 
 ---@return prefyl.compiler.Config
 local function load()
@@ -49,9 +85,10 @@ local function load()
     }
     for name, spec in pairs(config.plugins) do
         local cmd = spec.cmd or {}
+        local event = spec.event or {}
         local lazy = spec.lazy
         if lazy == nil then
-            lazy = 0 < #cmd
+            lazy = 0 < #cmd or 0 < #event
         end
         ---@type prefyl.compiler.config.PluginSpec
         compiler_config.plugins[name] = {
@@ -61,6 +98,7 @@ local function load()
             enabled = spec.enabled ~= false,
             lazy = lazy,
             cmd = cmd,
+            event = vim.iter(event):map(parse_event):totable(),
         }
     end
 

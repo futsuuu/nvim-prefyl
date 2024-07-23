@@ -9,6 +9,7 @@
 ---@field cond boolean?
 ---@field lazy boolean?
 ---@field cmd string[]?
+---@field event string[]?
 ---@field init function?
 ---@field config_pre function?
 ---@field config function?

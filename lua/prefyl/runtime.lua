@@ -103,4 +103,16 @@ function M.handle_user_command(plugin_name, user_command)
     )
 end
 
+local event_handler ---@module "prefyl.handler.event"
+---@param plugin_name string
+---@param event string | string[]
+---@param pattern (string | string[])?
+function M.handle_event(plugin_name, event, pattern)
+    event_handler = event_handler or require("prefyl.handler.event")
+    insert_handler_interrupter(
+        plugin_name,
+        event_handler(get_plugin_loader(plugin_name), event, pattern)
+    )
+end
+
 return M

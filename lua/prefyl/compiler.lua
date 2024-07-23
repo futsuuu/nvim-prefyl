@@ -116,6 +116,18 @@ local function handle_user_command(plugin_name, user_command)
     return ("rt.handle_user_command(%q, %q)\n"):format(plugin_name, user_command)
 end
 
+---@param plugin_name string
+---@param event string | string[]
+---@param pattern (string | string[])?
+local function handle_event(plugin_name, event, pattern)
+    local args = ""
+    args = args .. vim.inspect(event)
+    if pattern then
+        args = args .. ", " .. vim.inspect(pattern)
+    end
+    return ("rt.handle_event(%q, %s)\n"):format(plugin_name, args)
+end
+
 ---@param path prefyl.Path
 ---@return string
 local function source(path)
@@ -219,6 +231,10 @@ local function initialize_plugin(name, spec, spec_var)
     if spec.lazy then
         for _, cmd in ipairs(spec.cmd) do
             c = c .. handle_user_command(name, cmd)
+        end
+
+        for _, event in ipairs(spec.event) do
+            c = c .. handle_event(name, event.event, event.pattern)
         end
 
         ---@type string[]
