@@ -1,7 +1,7 @@
 local Path = require("prefyl.lib.path")
 local test = require("prefyl.lib.test")
 
-local dumper = require("prefyl.compiler.dumper")
+local dump = require("prefyl.compiler.dump")
 
 ---@enum prefyl.rtdir.DirKind
 local DirKind = {
@@ -106,17 +106,16 @@ function M.new(dir)
             :totable()
     end
 
-    local dumped_modules =
-        dumper.dump(vim.uri_encode(dir:tostring(), "rfc2396"), files[DirKind.LUA])
     ---@type prefyl.compiler.RuntimeDir
     return {
         dir = dir,
         plugin_files = files[DirKind.PLUGIN],
         ftdetect_files = files[DirKind.FTDETECT],
-        luamodules = vim.iter(files[DirKind.LUA]):fold({}, function(acc, path)
-            acc[get_luamodule(dir, path)] = dumped_modules[path]
-            return acc
-        end),
+        luamodules = vim.iter(files[DirKind.LUA])
+            :fold({}, function(acc, path) ---@param path prefyl.Path
+                acc[get_luamodule(dir, path)] = dump(path)
+                return acc
+            end),
         colorschemes = vim.iter(files[DirKind.COLORS])
             :map(function(path)
                 return get_colorscheme(dir, path)

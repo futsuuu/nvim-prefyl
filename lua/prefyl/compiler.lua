@@ -2,6 +2,7 @@ local Path = require("prefyl.lib.path")
 local str = require("prefyl.lib.str")
 
 local RuntimeDir = require("prefyl.compiler.rtdir")
+local dump = require("prefyl.compiler.dump")
 
 local M = {}
 
@@ -66,12 +67,7 @@ c = c
 rawset(package.preload, "prefyl.runtime", loadstring(%q))
 local rt = require("prefyl.runtime")
 
-]]):format(
-        string.dump(
-            assert(loadfile((Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"):tostring())),
-            true
-        )
-    )
+]]):format(dump(Path.prefyl_root / "lua" / "prefyl" / "runtime.lua", true))
 
 ---@param plugin_name string
 ---@return string

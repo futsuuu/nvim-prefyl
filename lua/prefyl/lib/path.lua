@@ -250,6 +250,12 @@ test.test("set_ext", function()
     test.assert_eq(M.new("foo"), M.new("foo"):set_ext(""))
 end)
 
+---@param rfc ("rfc2396" | "rfc2732" | "rfc3986")?
+---@return string
+function M:encode(rfc)
+    return vim.uri_encode(self.path, rfc)
+end
+
 ---@return self
 function M:ensure_dir()
     vim.fn.mkdir(self.path, "p")
@@ -262,15 +268,209 @@ function M:ensure_parent_dir()
     return self
 end
 
+---@protected
+---@return uv.aliases.fs_stat_table?
+function M:stat()
+    return vim.uv.fs_stat(self.path)
+end
+
 ---@return boolean
 function M:exists()
-    return vim.uv.fs_stat(self.path) ~= nil
+    return self:stat() ~= nil
 end
 
 ---@param expr string
 ---@return prefyl.Path[]
 function M:glob(expr)
     return vim.iter(vim.fn.glob(self.path .. "/" .. expr, false, true)):map(M.new):totable()
+end
+
+---@param path string
+---@param callback fun(err: string?, data: string?)
+local function read(path, callback)
+    vim.uv.fs_open(path, "r", 292, function(err, fd) -- 0444
+        if not fd then
+            callback(err)
+            return
+        end
+        vim.uv.fs_fstat(fd, function(err, stat)
+            if not stat then
+                callback(err)
+                return
+            end
+            vim.uv.fs_read(fd, stat.size, 0, function(err, data)
+                if not data then
+                    callback(err)
+                    return
+                end
+                vim.uv.fs_close(fd, function(err, success)
+                    if not success then
+                        callback(err)
+                        return
+                    end
+                    callback(nil, data)
+                end)
+            end)
+        end)
+    end)
+end
+
+---@param path string
+---@return string? data
+---@return string? error
+local function read_sync(path)
+    local fd, err = vim.uv.fs_open(path, "r", 292) -- 0444
+    if not fd then
+        return nil, err
+    end
+    local stat, err = vim.uv.fs_fstat(fd)
+    if not stat then
+        return nil, err
+    end
+    local data, err = vim.uv.fs_read(fd, stat.size)
+    if not data then
+        return nil, err
+    end
+    local success, err = vim.uv.fs_close(fd)
+    if not success then
+        return nil, err
+    end
+    return data
+end
+
+---@overload fun(self: prefyl.Path, callback: fun(err: string?, data: string?))
+---@overload fun(self: prefyl.Path): data: string?, error: string?
+function M:read(callback)
+    if callback then
+        read(self.path, callback)
+    else
+        return read_sync(self.path)
+    end
+end
+
+---@param path string
+---@param data string
+---@param callback fun(error: string?, bytes: integer?)
+local function write(path, data, callback)
+    vim.uv.fs_open(path, "w", 420, function(err, fd) -- 0644
+        if not fd then
+            callback(err)
+            return
+        end
+        vim.uv.fs_write(fd, data, 0, function(err, bytes)
+            if not bytes then
+                callback(err)
+                return
+            end
+            vim.uv.fs_close(fd, function(err, success)
+                if not success then
+                    callback(err)
+                    return
+                end
+                callback(nil, bytes)
+            end)
+        end)
+    end)
+end
+
+---@param path string
+---@param data string
+---@return integer? bytes
+---@return string? error
+local function write_sync(path, data)
+    local fd, err = vim.uv.fs_open(path, "w", 420) -- 0644
+    if not fd then
+        return nil, err
+    end
+    local bytes, err = vim.uv.fs_write(fd, data, 0)
+    if not bytes then
+        return nil, err
+    end
+    local success, err = vim.uv.fs_close(fd)
+    if not success then
+        return nil, err
+    end
+    return bytes
+end
+
+---@overload fun(self: prefyl.Path, data: string, callback: fun(err: string?, bytes: integer?))
+---@overload fun(self: prefyl.Path, data: string): bytes: integer?, error: string?
+function M:write(data, callback)
+    if callback then
+        write(self.path, data, callback)
+    else
+        return write_sync(self.path, data)
+    end
+end
+
+---@class prefyl.path.Timestamp
+---@field private sec integer
+---@field private nsec integer
+local Timestamp = {}
+---@private
+Timestamp.__index = Timestamp
+
+---@param time { sec: integer, nsec: integer }?
+---@return prefyl.path.Timestamp
+local function timestamp(time)
+    return setmetatable(time or { sec = 0, nsec = 0 }, Timestamp)
+end
+
+---@private
+---@param other prefyl.path.Timestamp
+---@return boolean
+function Timestamp:__eq(other)
+    return self.sec == other.sec and self.nsec == other.nsec
+end
+---@private
+---@param other prefyl.path.Timestamp
+---@return boolean
+function Timestamp:__lt(other)
+    if self.sec == other.sec then
+        return self.nsec <= other.nsec
+    else
+        return self.sec <= other.sec
+    end
+end
+---@private
+---@param other prefyl.path.Timestamp
+---@return boolean
+function Timestamp:__le(other)
+    if self.sec == other.sec then
+        return self.nsec < other.nsec
+    else
+        return self.sec < other.sec
+    end
+end
+
+test.test("timestamp", function()
+    assert(timestamp({ sec = 0, nsec = 1 }) < timestamp({ sec = 1, nsec = 5 }))
+    assert(timestamp({ sec = 1, nsec = 6 }) > timestamp({ sec = 1, nsec = 5 }))
+    test.assert_eq(timestamp({ sec = 0, nsec = 1 }), timestamp({ sec = 0, nsec = 1 }))
+end)
+
+---@return prefyl.path.Timestamp
+function M:birthtime()
+    local s = self:stat()
+    return timestamp(s and s.birthtime)
+end
+
+---@return prefyl.path.Timestamp
+function M:ctime()
+    local s = self:stat()
+    return timestamp(s and s.ctime)
+end
+
+---@return prefyl.path.Timestamp
+function M:mtime()
+    local s = self:stat()
+    return timestamp(s and s.mtime)
+end
+
+---@return prefyl.path.Timestamp
+function M:atime()
+    local s = self:stat()
+    return timestamp(s and s.atime)
 end
 
 ---@class prefyl.path.StdPath
