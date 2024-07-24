@@ -24,6 +24,7 @@ local function callback(cx, plugin_loader)
         then
             vim.api.nvim_exec_autocmds(cx.event, {
                 group = au.group,
+                pattern = au.pattern,
                 buffer = au.buffer,
                 data = cx.data,
                 modeline = false,
