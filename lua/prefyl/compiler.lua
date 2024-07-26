@@ -218,7 +218,7 @@ local function initialize_plugin(name, spec, spec_var)
     }
     local c = set_plugin_loader(
         name,
-        load_dependencies(spec.deps)
+        load_dependencies(spec.deps.directly)
             .. if_(("%s.config_pre"):format(spec_var), ("pcall(%s.config_pre)\n"):format(spec_var))
             .. load_rtdirs(rtdirs)
             .. if_(("%s.config"):format(spec_var), ("pcall(%s.config)\n"):format(spec_var))
@@ -264,13 +264,34 @@ end
 ---@param spec prefyl.compiler.config.PluginSpec
 ---@return string
 local function initialize_plugin_if_needed(name, spec)
-    if not spec.enabled then
-        return ("-- %q is disabled\n"):format(name)
-    end
     local c = str.dedent([[
-    local spec = rawget(require("prefyl.config").plugins, %q)
+    local plugins = require("prefyl.config").plugins
+    local spec = rawget(plugins, %q)
     ]]):format(name)
-    return do_(c .. if_("spec.cond ~= false", initialize_plugin(name, spec, "spec")))
+    local cond = vim.iter(spec.deps.recursive)
+        :flatten()
+        :map(function(s)
+            return ("rawget(plugins, %q)"):format(s)
+        end)
+        :fold("spec.cond ~= false", function(acc, spec)
+            return ("%s and %s.cond ~= false"):format(acc, spec)
+        end)
+    return do_(c .. if_(cond, initialize_plugin(name, spec, "spec")))
+end
+
+---@param spec prefyl.compiler.config.PluginSpec
+---@param plugins table<string, prefyl.compiler.config.PluginSpec>
+---@return boolean
+local function is_enabled(spec, plugins)
+    if not spec.enabled then
+        return false
+    end
+    for _, dep in ipairs(spec.deps.recursive) do
+        if not plugins[dep].enabled then
+            return false
+        end
+    end
+    return true
 end
 
 ---@param config prefyl.compiler.Config
@@ -290,7 +311,14 @@ local function compile(config)
             return acc
         end)
 
-    c = c .. vim.iter(plugins):map(initialize_plugin_if_needed):join("\n") .. "\n"
+    for name, spec in pairs(plugins) do
+        if is_enabled(spec, plugins) then
+            c = c .. initialize_plugin_if_needed(name, spec)
+        else
+            c = c .. ("-- %q is disabled\n"):format(name)
+        end
+        c = c .. "\n"
+    end
 
     c = c
         .. vim.iter(plugins)

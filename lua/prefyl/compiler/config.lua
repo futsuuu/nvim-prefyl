@@ -8,12 +8,104 @@ local test = require("prefyl.lib.test")
 ---@field url string?
 ---@field dir prefyl.Path
 ---@field enabled boolean
----@field deps string[]
+---@field deps prefyl.compiler.config.Deps
 ---@field lazy boolean
 ---@field cmd string[]
 ---@field event { event: string | string[], pattern: (string | string[])? }[]
 
+---@class prefyl.compiler.config.Deps
+---@field directly string[]
+---@field recursive string[]
+
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
+
+---@generic T
+---@param list T[]
+---@return T[]
+local function uniq(list)
+    local map = {}
+    local r = {}
+    for _, v in ipairs(list) do
+        if v ~= nil and not map[v] then
+            map[v] = true
+            table.insert(r, v)
+        end
+    end
+    return r
+end
+
+test.test("uniq", function()
+    test.assert_eq({ 1, 2, 3 }, uniq({ 1, 1, 2, 3, 1, 2, 3 }))
+end)
+
+---@param map table<string, string[]>
+---@return table<string, prefyl.compiler.config.Deps>
+local function recurse_deps(map)
+    ---@type table<string, prefyl.compiler.config.Deps>
+    local r = {}
+    for name, deps in pairs(map) do
+        deps = uniq(deps)
+        r[name] = { directly = deps, recursive = vim.deepcopy(deps) }
+    end
+
+    repeat
+        local changed = false
+
+        for _, deps in pairs(r) do
+            local deps_deps = vim.iter(deps.recursive)
+                :map(function(dep) ---@param dep string
+                    return r[dep].recursive
+                end)
+                :flatten()
+                :totable()
+
+            local len = #deps.recursive
+            vim.list_extend(deps.recursive, deps_deps)
+            deps.recursive = uniq(deps.recursive)
+            if len ~= #deps.recursive then
+                changed = true
+            end
+        end
+    until not changed
+
+    return r
+end
+
+test.group("recurse_deps", function()
+    test.test("recurse", function()
+        test.assert_eq(
+            {
+                z = { directly = { "a" }, recursive = { "a", "b", "c", "d" } },
+                a = { directly = { "b" }, recursive = { "b", "c", "d" } },
+                b = { directly = { "c" }, recursive = { "c", "d" } },
+                c = { directly = { "d" }, recursive = { "d" } },
+                d = { directly = {}, recursive = {} },
+            },
+            recurse_deps({
+                z = { "a" },
+                a = { "b" },
+                b = { "c" },
+                c = { "d" },
+                d = {},
+            })
+        )
+    end)
+
+    test.test("cycle", function()
+        test.assert_eq(
+            {
+                a = { directly = { "b" }, recursive = { "b", "c", "a" } },
+                b = { directly = { "c" }, recursive = { "c", "a", "b" } },
+                c = { directly = { "a" }, recursive = { "a", "b", "c" } },
+            },
+            recurse_deps({
+                a = { "b" },
+                b = { "c" },
+                c = { "a" },
+            })
+        )
+    end)
+end)
 
 ---@param event string
 ---@return { event: string | string[], pattern: (string | string[])? }
@@ -49,10 +141,9 @@ test.group("parse_event", function()
     end)
 end)
 
----@return prefyl.compiler.Config
-local function load()
-    local config = require("prefyl.config")
-
+---@param config prefyl.Config
+---@return prefyl.Config
+local function validate(config)
     vim.validate({
         config = { config, { "t" } },
     })
@@ -79,6 +170,21 @@ local function load()
         })
     end
 
+    return config
+end
+
+---@return prefyl.compiler.Config
+local function load()
+    local config = validate(require("prefyl.config"))
+
+    ---@type table<string, string[]>
+    local deps_map = vim.iter(config.plugins or {})
+        :fold({}, function(acc, name, spec) ---@param spec prefyl.config.PluginSpec
+            acc[name] = spec.deps or {}
+            return acc
+        end)
+    local deps_map = recurse_deps(deps_map)
+
     ---@type prefyl.compiler.Config
     local compiler_config = {
         plugins = {},
@@ -94,7 +200,7 @@ local function load()
         compiler_config.plugins[name] = {
             dir = spec.dir and Path.new(spec.dir) or (PLUGIN_ROOT / name),
             url = spec.url,
-            deps = spec.deps or {},
+            deps = deps_map[name],
             enabled = spec.enabled ~= false,
             lazy = lazy,
             cmd = cmd,
