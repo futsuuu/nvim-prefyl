@@ -1,3 +1,4 @@
+#!/usr/bin/env -S nvim -l
 -- NOTE: don't use other modules in this file.
 
 local M = {}

@@ -12,7 +12,7 @@ nvim-prefyl is a super-fast plugin manager for Neovim written in Lua.
 ### Testing
 
 ```bash
-nvim -l lua/prefyl/lib/test.lua
+./lua/prefyl/lib/test.lua
 ```
 
 ## License
