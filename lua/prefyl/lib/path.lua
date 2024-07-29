@@ -286,29 +286,29 @@ function M:glob(expr)
 end
 
 ---@param path string
----@param callback fun(err: string?, data: string?)
+---@param callback fun(data: string?, err: string?)
 local function read(path, callback)
     vim.uv.fs_open(path, "r", 292, function(err, fd) -- 0444
         if not fd then
-            callback(err)
+            callback(nil, err)
             return
         end
         vim.uv.fs_fstat(fd, function(err, stat)
             if not stat then
-                callback(err)
+                callback(nil, err)
                 return
             end
             vim.uv.fs_read(fd, stat.size, 0, function(err, data)
                 if not data then
-                    callback(err)
+                    callback(nil, err)
                     return
                 end
                 vim.uv.fs_close(fd, function(err, success)
                     if not success then
-                        callback(err)
+                        callback(nil, err)
                         return
                     end
-                    callback(nil, data)
+                    callback(data)
                 end)
             end)
         end)
@@ -338,7 +338,7 @@ local function read_sync(path)
     return data
 end
 
----@overload fun(self: prefyl.Path, callback: fun(err: string?, data: string?))
+---@overload fun(self: prefyl.Path, callback: fun(data: string?, err: string?))
 ---@overload fun(self: prefyl.Path): data: string?, error: string?
 function M:read(callback)
     if callback then
@@ -350,24 +350,24 @@ end
 
 ---@param path string
 ---@param data string
----@param callback fun(error: string?, bytes: integer?)
+---@param callback fun(bytes: integer?, err: string?)
 local function write(path, data, callback)
     vim.uv.fs_open(path, "w", 420, function(err, fd) -- 0644
         if not fd then
-            callback(err)
+            callback(nil, err)
             return
         end
         vim.uv.fs_write(fd, data, 0, function(err, bytes)
             if not bytes then
-                callback(err)
+                callback(nil, err)
                 return
             end
             vim.uv.fs_close(fd, function(err, success)
                 if not success then
-                    callback(err)
+                    callback(nil, err)
                     return
                 end
-                callback(nil, bytes)
+                callback(bytes)
             end)
         end)
     end)
@@ -393,7 +393,7 @@ local function write_sync(path, data)
     return bytes
 end
 
----@overload fun(self: prefyl.Path, data: string, callback: fun(err: string?, bytes: integer?))
+---@overload fun(self: prefyl.Path, data: string, callback: fun(bytes: integer?, err: string?))
 ---@overload fun(self: prefyl.Path, data: string): bytes: integer?, error: string?
 function M:write(data, callback)
     if callback then

@@ -11,9 +11,7 @@ return function(path, strip)
         return assert(cache:read())
     else
         local data = string.dump(assert(loadfile(path:tostring())), strip)
-        cache:ensure_parent_dir():write(data, function(err)
-            assert(not err, err)
-        end)
+        cache:ensure_parent_dir():write(data, assert)
         return data
     end
 end

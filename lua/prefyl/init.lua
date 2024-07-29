@@ -2,20 +2,15 @@ local M = {}
 
 ---@param opts { load: boolean? }
 function M.compile(opts)
-    local out = (require("prefyl.lib.path").stdpath.state / "prefyl" / "compiled.luac"):ensure_parent_dir()
+    local state_dir = (require("prefyl.lib.path").stdpath.state / "prefyl"):ensure_dir()
+
     local script = require("prefyl.compiler").compile()
+    state_dir:join("compiled.lua"):write(script, assert)
+
     local bytecode = string.dump(assert(loadstring(script)), true)
-    do
-        local f = assert(io.open(out:tostring(), "wb"))
-        f:write(bytecode)
-        f:close()
-    end
-    do
-        local f = assert(io.open(out:set_ext("lua"):tostring(), "w"))
-        f:write(script)
-        f:close()
-    end
-    if opts.load == true then
+    state_dir:join("compiled.luac"):write(bytecode, assert)
+
+    if opts.load then
         assert(loadstring(script))()
     end
 end
