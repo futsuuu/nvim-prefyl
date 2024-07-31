@@ -52,6 +52,9 @@ plugins.neogit = {
     url = "https://github.com/NeogitOrg/neogit",
     deps = { "plenary" },
     cmd = { "Neogit" },
+    config = function()
+        require("neogit").setup({})
+    end,
 }
 
 plugins.lspconfig = {
