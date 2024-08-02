@@ -10,6 +10,11 @@ M.__index = M
 local SEPARATOR = package.config:sub(1, 1)
 local IS_WINDOWS = SEPARATOR == "\\"
 
+---@return string
+function M.separator()
+    return SEPARATOR
+end
+
 ---@param path string | prefyl.Path
 ---@return prefyl.Path
 function M.new(path)
