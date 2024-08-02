@@ -6,20 +6,29 @@ local running = false
 
 ---@class prefyl.test.TestOpts
 ---@field fail boolean?
+---@field skip boolean?
 ---@field defer boolean?
 local default_test_opts = {
     fail = false,
+    skip = false,
     defer = true,
 }
 
 ---@class prefyl.test.GroupOpts
+---@field skip boolean?
 ---@field defer boolean?
 local default_group_opts = {
+    skip = false,
     defer = true,
 }
 
 local name_stack = {} ---@type string[]
 local deferred_funcs = {} ---@type function[]
+
+---@return string
+local function get_title()
+    return table.concat(name_stack, " :: ")
+end
 
 ---@return boolean
 local function is_called()
@@ -46,14 +55,18 @@ function M.test(name, opts, func)
 
     local function test()
         table.insert(name_stack, name)
-        local success, err = pcall(func)
-        local title = table.concat(name_stack, " :: ")
-        if (success and not opts.fail) or (not success and opts.fail) then
-            print(title .. ": ok")
-        elseif success then
-            error(title .. ": didn't fail")
+        local title = get_title()
+        if opts.skip then
+            print(title .. ": skipped")
         else
-            error(title .. ": " .. err)
+            local success, err = pcall(func)
+            if (success and not opts.fail) or (not success and opts.fail) then
+                print(title .. ": ok")
+            elseif success then
+                error(title .. ": didn't fail")
+            else
+                error(title .. ": " .. err)
+            end
         end
         table.remove(name_stack)
     end
@@ -81,10 +94,17 @@ function M.group(name, opts, func)
 
     local function group()
         table.insert(name_stack, name)
-        local deferred_len = #deferred_funcs
-        func()
-        for _, fn in ipairs(vim.list_slice(deferred_funcs, deferred_len + 1, #deferred_funcs + 1)) do
-            fn()
+        local title = get_title()
+        if opts.skip then
+            print(title .. ": skipped")
+        else
+            local deferred_len = #deferred_funcs
+            func()
+            for _, fn in
+                ipairs(vim.list_slice(deferred_funcs, deferred_len + 1, #deferred_funcs + 1))
+            do
+                fn()
+            end
         end
         table.remove(name_stack)
     end
