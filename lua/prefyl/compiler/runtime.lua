@@ -17,17 +17,34 @@ function M.load_plugin(plugin_name)
     })
 end
 
+---@param plugin_name string
+---@return prefyl.compiler.Chunk
+function M.load_after_plugin(plugin_name)
+    return Chunk.new(("load_after_plugin(%q)\n"):format(plugin_name), {
+        inputs = {
+            Chunk.new(
+                ("local load_after_plugin = %s.load_after_plugin\n"):format(rt:get_output()),
+                { output = "load_after_plugin", inputs = { rt } }
+            ),
+        },
+    })
+end
+
 ---@param name string
----@param body prefyl.compiler.Chunk
-function M.set_plugin_loader(name, body)
-    return Chunk.new(("set_plugin_loader(%q, plugin_loader)\n"):format(name), {
+---@param loader prefyl.compiler.Chunk
+---@param after_loader prefyl.compiler.Chunk
+function M.set_plugin_loader(name, loader, after_loader)
+    return Chunk.new(("set_plugin_loader(%q, plugin_loader, after_plugin_loader)\n"):format(name), {
         inputs = {
             Chunk.new(
                 ("local set_plugin_loader = %s.set_plugin_loader\n"):format(rt:get_output()),
                 { output = "set_plugin_loader", inputs = { rt } }
             ),
             Chunk.function_("plugin_loader", {}, function()
-                return body
+                return loader
+            end, { fixed = true }),
+            Chunk.function_("after_plugin_loader", {}, function()
+                return after_loader
             end, { fixed = true }),
         },
     })

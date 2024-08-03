@@ -12,18 +12,30 @@ local M = {}
 local default_runtimepaths = nvim.default_runtimepaths()
 
 ---@param rtdirs prefyl.compiler.RuntimeDir[]
+---@param after boolean
 ---@return prefyl.compiler.chunk.Scope
-local function load_rtdirs(rtdirs)
+local function load_rtdirs(rtdirs, after)
     local scope = Chunk.scope()
-    for _, rtdir in ipairs(rtdirs) do
-        if not vim.list_contains(default_runtimepaths, rtdir.dir) and rtdir.dir:exists() then
-            scope:push(nvim.add_to_rtp({ rtdir.dir }))
+
+    if not after then
+        scope:push(nvim.add_to_rtp(vim.iter(rtdirs)
+            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                return rtdir.dir
+            end)
+            :filter(function(path) ---@param path prefyl.Path
+                return not vim.list_contains(default_runtimepaths, path) and path:exists()
+            end)
+            :totable()))
+        for _, rtdir in ipairs(rtdirs) do
+            scope:extend(vim.iter(rtdir.luamodules):map(runtime.set_luachunk):totable())
         end
-        scope:extend(vim.iter(rtdir.luamodules):map(runtime.set_luachunk):totable())
     end
 
     scope
         :extend(vim.iter(rtdirs)
+            :filter(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                return after == rtdir.dir:ends_with("after")
+            end)
             :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
                 return rtdir.plugin_files
             end)
@@ -33,6 +45,9 @@ local function load_rtdirs(rtdirs)
         :extend(nvim.augroup(
             "filetypedetect",
             vim.iter(rtdirs)
+                :filter(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                    return after == rtdir.dir:ends_with("after")
+                end)
                 :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
                     return rtdir.ftdetect_files
                 end)
@@ -45,9 +60,14 @@ local function load_rtdirs(rtdirs)
 end
 
 ---@param deps string[]
+---@param after boolean
 ---@return prefyl.compiler.Chunk[]
-local function load_dependencies(deps)
-    return vim.iter(deps):map(runtime.load_plugin):totable()
+local function load_dependencies(deps, after)
+    if not after then
+        return vim.iter(deps):map(runtime.load_plugin):totable()
+    else
+        return vim.iter(deps):rev():map(runtime.load_after_plugin):totable()
+    end
 end
 
 ---@param spec_var prefyl.compiler.Chunk
@@ -74,9 +94,14 @@ local function initialize_plugin(name, spec, spec_var)
     scope:push(
         runtime.set_plugin_loader(
             name,
-            Chunk.scope(load_dependencies(spec.deps.directly))
+            Chunk.scope()
+                :extend(load_dependencies(spec.deps.directly, false))
                 :push(call_spec_func(spec_var, "config_pre"))
-                :extend(load_rtdirs(rtdirs))
+                :extend(load_rtdirs(rtdirs, false))
+                :to_chunk(),
+            Chunk.scope()
+                :extend(load_rtdirs(rtdirs, true))
+                :extend(load_dependencies(spec.deps.directly, true))
                 :push(call_spec_func(spec_var, "config"))
                 :to_chunk()
         )
@@ -164,7 +189,8 @@ end
 local function compile(config)
     local scope = Chunk.scope()
 
-    scope:extend(load_rtdirs(vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()))
+    local default_rtdirs = vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()
+    scope:extend(load_rtdirs(default_rtdirs, false)):extend(load_rtdirs(default_rtdirs, true))
 
     ---@type table<string, prefyl.compiler.config.PluginSpec>
     local plugins = vim.iter(config.plugins)

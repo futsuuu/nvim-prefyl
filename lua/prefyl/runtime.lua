@@ -1,13 +1,14 @@
 local M = {}
 
--- key: plugin name
 ---@type table<string, function>
 local plugin_loaders = {}
--- key: plugin name
+---@type table<string, function>
+local after_plugin_loaders = {}
+
 ---@type table<string, function[]>
 local handler_interrupters = {}
 
----@param plugin_name string?
+---@param plugin_name string
 function M.load_plugin(plugin_name)
     local loader = rawget(plugin_loaders, plugin_name)
     if not loader then
@@ -21,9 +22,20 @@ function M.load_plugin(plugin_name)
 end
 
 ---@param plugin_name string
+function M.load_after_plugin(plugin_name)
+    local loader = rawget(after_plugin_loaders, plugin_name)
+    if loader then
+        rawset(after_plugin_loaders, plugin_name, nil)
+        loader()
+    end
+end
+
+---@param plugin_name string
 ---@param loader function
-function M.set_plugin_loader(plugin_name, loader)
+---@param after_loader function
+function M.set_plugin_loader(plugin_name, loader, after_loader)
     rawset(plugin_loaders, plugin_name, loader)
+    rawset(after_plugin_loaders, plugin_name, after_loader)
 end
 
 -- key: module name
@@ -38,7 +50,11 @@ local luamodule_owners = {}
 ---@param module_name string
 ---@return string | function
 table.insert(package.loaders, 2, function(module_name)
-    M.load_plugin(rawget(luamodule_owners, module_name))
+    local plugin_name = rawget(luamodule_owners, module_name)
+    if plugin_name then
+        M.load_plugin(plugin_name)
+        M.load_after_plugin(plugin_name)
+    end
     local chunk = rawget(luachunks, module_name)
     if not chunk then
         return "\n\tno cache '" .. module_name .. "'"
@@ -59,11 +75,12 @@ function M.handle_luamodule(plugin_name, module_name)
     rawset(luamodule_owners, module_name, plugin_name)
 end
 
----@param plugin_name string?
+---@param plugin_name string
 ---@return function
 local function get_plugin_loader(plugin_name)
     return function()
         M.load_plugin(plugin_name)
+        M.load_after_plugin(plugin_name)
     end
 end
 
