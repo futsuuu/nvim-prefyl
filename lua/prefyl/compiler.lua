@@ -187,10 +187,24 @@ end
 ---@param config prefyl.compiler.Config
 ---@return string
 local function compile(config)
-    local scope = Chunk.scope()
+    local s = str.dedent([[
+    -- vim:readonly:nowrap
+    rawset(package.preload, "prefyl.runtime", loadstring(%q))
+    vim.api.nvim_set_var("did_load_ftdetect", 1)
+    vim.api.nvim_set_option_value("loadplugins", false, {})
+    vim.api.nvim_set_option_value("runtimepath", %q, {})
+    ]]):format(
+        dump(Path.prefyl_root / "lua" / "prefyl" / "runtime.lua", true),
+        vim.iter(default_runtimepaths):map(tostring):join(",")
+    )
 
     local default_rtdirs = vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()
-    scope:extend(load_rtdirs(default_rtdirs, false)):extend(load_rtdirs(default_rtdirs, true))
+    s = s
+        .. Chunk.scope()
+            :extend(load_rtdirs(default_rtdirs, false))
+            :extend(load_rtdirs(default_rtdirs, true))
+            :to_chunk()
+            :tostring()
 
     ---@type table<string, prefyl.compiler.config.PluginSpec>
     local plugins = vim.iter(config.plugins)
@@ -201,6 +215,8 @@ local function compile(config)
             acc[name] = spec
             return acc
         end)
+
+    local scope = Chunk.scope()
 
     for name, spec in pairs(plugins) do
         if is_enabled(spec, plugins) then
@@ -219,16 +235,7 @@ local function compile(config)
         end)
         :totable())
 
-    local s = str.dedent([[
-    -- vim:readonly:nowrap
-    rawset(package.preload, "prefyl.runtime", loadstring(%q))
-    vim.api.nvim_set_var("did_load_ftdetect", 1)
-    vim.api.nvim_set_option_value("loadplugins", false, {})
-    vim.api.nvim_set_option_value("runtimepath", %q, {})
-    ]]):format(
-        dump(Path.prefyl_root / "lua" / "prefyl" / "runtime.lua", true),
-        vim.iter(default_runtimepaths):map(tostring):join(",")
-    ) .. scope:to_chunk():tostring()
+    s = s .. scope:to_chunk():tostring()
 
     return (s:gsub("\\\n", "\\n"))
 end
