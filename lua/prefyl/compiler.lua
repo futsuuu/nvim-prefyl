@@ -4,6 +4,7 @@ local str = require("prefyl.lib.str")
 local Chunk = require("prefyl.compiler.chunk")
 local RuntimeDir = require("prefyl.compiler.rtdir")
 local dump = require("prefyl.compiler.dump")
+local installer = require("prefyl.compiler.installer")
 local nvim = require("prefyl.compiler.nvim")
 local runtime = require("prefyl.compiler.runtime")
 
@@ -186,7 +187,7 @@ end
 
 ---@param config prefyl.compiler.Config
 ---@return string
-local function compile(config)
+local function generate_script(config)
     local s = str.dedent([[
     -- vim:readonly:nowrap
     rawset(package.preload, "prefyl.runtime", loadstring(%q))
@@ -237,14 +238,23 @@ local function compile(config)
 
     s = s .. scope:to_chunk():tostring()
 
-    return (s:gsub("\\\n", "\\n"))
+    return s
 end
 
----@return string
+---@return prefyl.Path
 function M.compile()
     local config = require("prefyl.compiler.config")
-    require("prefyl.compiler.installer").install(config)
-    return compile(config)
+    local state_dir = (Path.stdpath.state / "prefyl"):ensure_dir()
+
+    installer.install(config)
+    local script = generate_script(config):gsub("\\\n", "\\n")
+
+    assert(state_dir:join("compiled.lua"):write(script))
+
+    local bytecode = string.dump(assert(loadstring(script)), true)
+    state_dir:join("compiled.luac"):write(bytecode, assert)
+
+    return state_dir:join("compiled.lua")
 end
 
 return M
