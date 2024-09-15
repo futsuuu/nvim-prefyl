@@ -1,5 +1,6 @@
 ---@param plugin_loader function
 ---@param name string
+---@return function
 return function(plugin_loader, name)
     local loaded = false
 
@@ -9,9 +10,11 @@ return function(plugin_loader, name)
             cmd = name,
             args = cx.fargs,
             bang = cx.bang,
-            count = 0 < cx.count and cx.count or nil,
             mods = cx.smods,
         }
+        if 0 < cx.count then
+            cmd.count = cx.count
+        end
         if cx.range == 1 then
             cmd.range = { cx.line1 }
         elseif cx.range == 2 then
@@ -22,7 +25,10 @@ return function(plugin_loader, name)
         vim.api.nvim_del_user_command(name)
         plugin_loader()
 
-        if vim.api.nvim_get_commands({})[name] or vim.api.nvim_buf_get_commands(0, {})[name] then
+        if
+            rawget(vim.api.nvim_get_commands({}), name) ~= nil
+            or rawget(vim.api.nvim_buf_get_commands(0, {}), name) ~= nil
+        then
             vim.api.nvim_cmd(cmd, {})
         end
     end, {
@@ -33,7 +39,7 @@ return function(plugin_loader, name)
             loaded = true
             vim.api.nvim_del_user_command(name)
             plugin_loader()
-            return vim.fn.getcompletion(cmdline, "cmdline")
+            return vim.api.nvim_call_function("getcompletion", { cmdline, "cmdline" })
         end,
     })
 

@@ -102,7 +102,9 @@ local colorscheme_handler ---@module "prefyl.handler.colorscheme"
 ---@param plugin_name string
 ---@param colorscheme string
 function M.handle_colorscheme(plugin_name, colorscheme)
-    colorscheme_handler = colorscheme_handler or require("prefyl.handler.colorscheme")
+    if colorscheme_handler == nil then
+        colorscheme_handler = require("prefyl.handler.colorscheme")
+    end
     insert_handler_interrupter(
         plugin_name,
         colorscheme_handler(get_plugin_loader(plugin_name), colorscheme)
@@ -113,7 +115,9 @@ local user_command_handler ---@module "prefyl.handler.cmd"
 ---@param plugin_name string
 ---@param user_command string
 function M.handle_user_command(plugin_name, user_command)
-    user_command_handler = user_command_handler or require("prefyl.handler.cmd")
+    if user_command_handler == nil then
+        user_command_handler = require("prefyl.handler.cmd")
+    end
     insert_handler_interrupter(
         plugin_name,
         user_command_handler(get_plugin_loader(plugin_name), user_command)
@@ -125,7 +129,9 @@ local event_handler ---@module "prefyl.handler.event"
 ---@param event string | string[]
 ---@param pattern (string | string[])?
 function M.handle_event(plugin_name, event, pattern)
-    event_handler = event_handler or require("prefyl.handler.event")
+    if event_handler == nil then
+        event_handler = require("prefyl.handler.event")
+    end
     insert_handler_interrupter(
         plugin_name,
         event_handler(get_plugin_loader(plugin_name), event, pattern)
