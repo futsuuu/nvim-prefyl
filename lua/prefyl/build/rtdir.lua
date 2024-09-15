@@ -1,7 +1,7 @@
 local Path = require("prefyl.lib.path")
 local test = require("prefyl.lib.test")
 
-local dump = require("prefyl.compiler.dump")
+local dump = require("prefyl.build.dump")
 
 ---@enum prefyl.rtdir.DirKind
 local DirKind = {
@@ -85,7 +85,7 @@ test.test("get_colorscheme", function()
     test.assert_eq("bar", get_colorscheme(Path.new("/plugin"), Path.new("/plugin/colors/bar.lua")))
 end)
 
----@class prefyl.compiler.RuntimeDir
+---@class prefyl.build.RuntimeDir
 ---@field dir prefyl.Path
 ---@field plugin_files prefyl.Path[]
 ---@field ftdetect_files prefyl.Path[]
@@ -94,7 +94,7 @@ end)
 local M = {}
 
 ---@param dir prefyl.Path
----@return prefyl.compiler.RuntimeDir
+---@return prefyl.build.RuntimeDir
 function M.new(dir)
     local files = {} ---@type table<prefyl.rtdir.DirKind, prefyl.Path[]>
     for kind, ps in pairs(patterns) do
@@ -106,7 +106,7 @@ function M.new(dir)
             :totable()
     end
 
-    ---@type prefyl.compiler.RuntimeDir
+    ---@type prefyl.build.RuntimeDir
     return {
         dir = dir,
         plugin_files = files[DirKind.PLUGIN],

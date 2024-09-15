@@ -1,26 +1,26 @@
 local Path = require("prefyl.lib.path")
 local str = require("prefyl.lib.str")
 
-local Chunk = require("prefyl.compiler.chunk")
-local RuntimeDir = require("prefyl.compiler.rtdir")
-local dump = require("prefyl.compiler.dump")
-local installer = require("prefyl.compiler.installer")
-local nvim = require("prefyl.compiler.nvim")
-local runtime = require("prefyl.compiler.runtime")
+local Chunk = require("prefyl.build.chunk")
+local RuntimeDir = require("prefyl.build.rtdir")
+local dump = require("prefyl.build.dump")
+local installer = require("prefyl.build.installer")
+local nvim = require("prefyl.build.nvim")
+local runtime = require("prefyl.build.runtime")
 
 local M = {}
 
 local default_runtimepaths = nvim.default_runtimepaths()
 
----@param rtdirs prefyl.compiler.RuntimeDir[]
+---@param rtdirs prefyl.build.RuntimeDir[]
 ---@param after boolean
----@return prefyl.compiler.chunk.Scope
+---@return prefyl.build.chunk.Scope
 local function load_rtdirs(rtdirs, after)
     local scope = Chunk.scope()
 
     if not after then
         scope:push(nvim.add_to_rtp(vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return rtdir.dir
             end)
             :filter(function(path) ---@param path prefyl.Path
@@ -34,10 +34,10 @@ local function load_rtdirs(rtdirs, after)
 
     scope
         :extend(vim.iter(rtdirs)
-            :filter(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return after == rtdir.dir:ends_with("after")
             end)
-            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return rtdir.plugin_files
             end)
             :flatten()
@@ -46,10 +46,10 @@ local function load_rtdirs(rtdirs, after)
         :extend(nvim.augroup(
             "filetypedetect",
             vim.iter(rtdirs)
-                :filter(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                     return after == rtdir.dir:ends_with("after")
                 end)
-                :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+                :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                     return rtdir.ftdetect_files
                 end)
                 :flatten()
@@ -62,7 +62,7 @@ end
 
 ---@param deps string[]
 ---@param after boolean
----@return prefyl.compiler.Chunk[]
+---@return prefyl.build.Chunk[]
 local function load_dependencies(deps, after)
     if not after then
         return vim.iter(deps):map(runtime.load_plugin):totable()
@@ -71,9 +71,9 @@ local function load_dependencies(deps, after)
     end
 end
 
----@param spec_var prefyl.compiler.Chunk
+---@param spec_var prefyl.build.Chunk
 ---@param name string
----@return prefyl.compiler.Chunk
+---@return prefyl.build.Chunk
 local function call_spec_func(spec_var, name)
     return Chunk.if_(
         ("%s.%s"):format(spec_var:get_output(), name),
@@ -83,9 +83,9 @@ local function call_spec_func(spec_var, name)
 end
 
 ---@param name string
----@param spec prefyl.compiler.config.PluginSpec
----@param spec_var prefyl.compiler.Chunk
----@return prefyl.compiler.chunk.Scope
+---@param spec prefyl.build.config.PluginSpec
+---@param spec_var prefyl.build.Chunk
+---@return prefyl.build.chunk.Scope
 local function initialize_plugin(name, spec, spec_var)
     local rtdirs = {
         RuntimeDir.new(spec.dir),
@@ -119,7 +119,7 @@ local function initialize_plugin(name, spec, spec_var)
 
         ---@type string[]
         local colorschemes = vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return rtdir.colorschemes
             end)
             :flatten()
@@ -130,7 +130,7 @@ local function initialize_plugin(name, spec, spec_var)
 
         ---@type string[]
         local luamodules = vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.compiler.RuntimeDir
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return vim.tbl_keys(rtdir.luamodules)
             end)
             :flatten()
@@ -146,8 +146,8 @@ local function initialize_plugin(name, spec, spec_var)
 end
 
 ---@param name string
----@param spec prefyl.compiler.config.PluginSpec
----@return prefyl.compiler.Chunk
+---@param spec prefyl.build.config.PluginSpec
+---@return prefyl.build.Chunk
 local function initialize_plugin_if_needed(name, spec)
     local plugins_var =
         Chunk.new('local plugins = require("prefyl.config").plugins\n', { output = "plugins" })
@@ -170,8 +170,8 @@ local function initialize_plugin_if_needed(name, spec)
     )
 end
 
----@param spec prefyl.compiler.config.PluginSpec
----@param plugins table<string, prefyl.compiler.config.PluginSpec>
+---@param spec prefyl.build.config.PluginSpec
+---@param plugins table<string, prefyl.build.config.PluginSpec>
 ---@return boolean
 local function is_enabled(spec, plugins)
     if not spec.enabled then
@@ -185,7 +185,7 @@ local function is_enabled(spec, plugins)
     return true
 end
 
----@param config prefyl.compiler.Config
+---@param config prefyl.build.Config
 ---@return string
 local function generate_script(config)
     local s = str.dedent([[
@@ -207,9 +207,9 @@ local function generate_script(config)
             :to_chunk()
             :tostring()
 
-    ---@type table<string, prefyl.compiler.config.PluginSpec>
+    ---@type table<string, prefyl.build.config.PluginSpec>
     local plugins = vim.iter(config.plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.compiler.config.PluginSpec
+        :filter(function(_name, spec) ---@param spec prefyl.build.config.PluginSpec
             return not vim.list_contains(default_runtimepaths, spec.dir)
         end)
         :fold({}, function(acc, name, spec)
@@ -228,7 +228,7 @@ local function generate_script(config)
     end
 
     scope:extend(vim.iter(plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.compiler.config.PluginSpec
+        :filter(function(_name, spec) ---@param spec prefyl.build.config.PluginSpec
             return not spec.lazy
         end)
         :map(function(name, _spec)
@@ -242,19 +242,19 @@ local function generate_script(config)
 end
 
 ---@return prefyl.Path
-function M.compile()
-    local config = require("prefyl.compiler.config")
+function M.build()
+    local config = require("prefyl.build.config")
     local state_dir = (Path.stdpath.state / "prefyl"):ensure_dir()
 
     installer.install(config)
     local script = generate_script(config):gsub("\\\n", "\\n")
 
-    assert(state_dir:join("compiled.lua"):write(script))
+    assert(state_dir:join("main.lua"):write(script))
 
     local bytecode = string.dump(assert(loadstring(script)), true)
-    state_dir:join("compiled.luac"):write(bytecode, assert)
+    state_dir:join("main.luac"):write(bytecode, assert)
 
-    return state_dir:join("compiled.lua")
+    return state_dir:join("main.lua")
 end
 
 return M

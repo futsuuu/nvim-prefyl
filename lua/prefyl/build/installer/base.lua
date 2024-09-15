@@ -1,4 +1,4 @@
----@class prefyl.compiler.Installer
+---@class prefyl.build.Installer
 ---@field private hooks_install function[]
 ---@field private hooks_post_install function[]
 local M = {}
@@ -7,7 +7,7 @@ M.__index = M
 
 ---@param dir prefyl.Path
 ---@param param any
----@return prefyl.compiler.Installer
+---@return prefyl.build.Installer
 ---@diagnostic disable-next-line: unused-local
 function M.new(dir, param)
     return setmetatable({}, M)
@@ -21,9 +21,9 @@ end
 
 function M:install() end
 
----@return prefyl.compiler.InstallProgress
+---@return prefyl.build.InstallProgress
 function M:progress()
-    ---@type prefyl.compiler.InstallProgress
+    ---@type prefyl.build.InstallProgress
     return {
         title = "dummy",
         is_finished = true,

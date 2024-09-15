@@ -1,7 +1,7 @@
 local Path = require("prefyl.lib.path")
 local test = require("prefyl.lib.test")
 
-local Chunk = require("prefyl.compiler.chunk")
+local Chunk = require("prefyl.build.chunk")
 
 local M = {}
 
@@ -29,7 +29,7 @@ function M.default_runtimepaths()
 end
 
 ---@param path prefyl.Path
----@return prefyl.compiler.Chunk
+---@return prefyl.build.Chunk
 function M.source(path)
     if path:exists() then
         return Chunk.new(('vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})\n'):format(path))
@@ -39,8 +39,8 @@ function M.source(path)
 end
 
 ---@param group string
----@param body prefyl.compiler.Chunk[]
----@return prefyl.compiler.chunk.Scope
+---@param body prefyl.build.Chunk[]
+---@return prefyl.build.chunk.Scope
 function M.augroup(group, body)
     if 0 < #body then
         return Chunk.scope(vim.iter(body):totable())
@@ -52,7 +52,7 @@ function M.augroup(group, body)
 end
 
 ---@param paths prefyl.Path[]
----@return prefyl.compiler.Chunk
+---@return prefyl.build.Chunk
 function M.add_to_rtp(paths)
     local noafter = ""
     local after = ""

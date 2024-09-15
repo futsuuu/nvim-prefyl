@@ -1,4 +1,4 @@
-local chunk, _ = loadfile(vim.fn.stdpath("state") .. "/prefyl/compiled.luac")
+local chunk, _ = loadfile(vim.fn.stdpath("state") .. "/prefyl/main.luac")
 if chunk then
     chunk()
 else
@@ -14,7 +14,7 @@ else
         })
     end
     vim.opt.runtimepath:prepend(repo_dir)
-    require("prefyl").compile({ load = true })
+    require("prefyl").build({ load = true })
 end
 
 vim.cmd.colorscheme("kanagawa")

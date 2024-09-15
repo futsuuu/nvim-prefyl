@@ -1,19 +1,19 @@
 local Path = require("prefyl.lib.path")
 local test = require("prefyl.lib.test")
 
----@class prefyl.compiler.Config
----@field plugins table<string, prefyl.compiler.config.PluginSpec>
+---@class prefyl.build.Config
+---@field plugins table<string, prefyl.build.config.PluginSpec>
 
----@class prefyl.compiler.config.PluginSpec
+---@class prefyl.build.config.PluginSpec
 ---@field url string?
 ---@field dir prefyl.Path
 ---@field enabled boolean
----@field deps prefyl.compiler.config.Deps
+---@field deps prefyl.build.config.Deps
 ---@field lazy boolean
 ---@field cmd string[]
 ---@field event { event: string | string[], pattern: (string | string[])? }[]
 
----@class prefyl.compiler.config.Deps
+---@class prefyl.build.config.Deps
 ---@field directly string[]
 ---@field recursive string[]
 
@@ -39,9 +39,9 @@ test.test("uniq", function()
 end)
 
 ---@param map table<string, string[]>
----@return table<string, prefyl.compiler.config.Deps>
+---@return table<string, prefyl.build.config.Deps>
 local function recurse_deps(map)
-    ---@type table<string, prefyl.compiler.config.Deps>
+    ---@type table<string, prefyl.build.config.Deps>
     local r = {}
     for name, deps in pairs(map) do
         deps = uniq(deps)
@@ -173,7 +173,7 @@ local function validate(config)
     return config
 end
 
----@return prefyl.compiler.Config
+---@return prefyl.build.Config
 local function load()
     local config = validate(require("prefyl.config"))
 
@@ -185,8 +185,8 @@ local function load()
         end)
     local deps_map = recurse_deps(deps_map)
 
-    ---@type prefyl.compiler.Config
-    local compiler_config = {
+    ---@type prefyl.build.Config
+    local build_config = {
         plugins = {},
     }
     for name, spec in pairs(config.plugins) do
@@ -196,8 +196,8 @@ local function load()
         if lazy == nil then
             lazy = 0 < #cmd or 0 < #event
         end
-        ---@type prefyl.compiler.config.PluginSpec
-        compiler_config.plugins[name] = {
+        ---@type prefyl.build.config.PluginSpec
+        build_config.plugins[name] = {
             dir = spec.dir and Path.new(spec.dir) or (PLUGIN_ROOT / name),
             url = spec.url,
             deps = deps_map[name],
@@ -208,7 +208,7 @@ local function load()
         }
     end
 
-    return compiler_config
+    return build_config
 end
 
 return load()

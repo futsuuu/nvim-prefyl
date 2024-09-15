@@ -1,8 +1,8 @@
 local M = {}
 
 ---@param opts { load: boolean? }
-function M.compile(opts)
-    local out = require("prefyl.compiler").compile()
+function M.build(opts)
+    local out = require("prefyl.build").build()
     if opts.load then
         dofile(out:tostring())
     end
