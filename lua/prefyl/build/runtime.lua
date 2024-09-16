@@ -125,4 +125,43 @@ function M.handle_event(plugin_name, event, pattern)
     })
 end
 
+---@param path prefyl.Path
+---@return prefyl.build.Chunk
+function M.prefetch_file(path)
+    return Chunk.new(("prefetch_file(%q)\n"):format(path), {
+        inputs = {
+            Chunk.new(
+                ("local prefetch_file = %s.prefetch_file\n"):format(rt:get_output()),
+                { output = "prefetch_file", inputs = { rt } }
+            ),
+        },
+    })
+end
+
+---@param path prefyl.Path
+---@return prefyl.build.Chunk
+function M.do_file(path)
+    return Chunk.new(("do_file(%q)\n"):format(path), {
+        inputs = {
+            Chunk.new(
+                ("local do_file = %s.do_file\n"):format(rt:get_output()),
+                { output = "do_file", inputs = { rt } }
+            ),
+        },
+    })
+end
+
+---@param path prefyl.Path
+---@return prefyl.build.Chunk
+function M.do_file_sync(path)
+    return Chunk.new(("do_file_sync(%q)\n"):format(path), {
+        inputs = {
+            Chunk.new(
+                ("local do_file_sync = %s.do_file_sync\n"):format(rt:get_output()),
+                { output = "do_file_sync", inputs = { rt } }
+            ),
+        },
+    })
+end
+
 return M

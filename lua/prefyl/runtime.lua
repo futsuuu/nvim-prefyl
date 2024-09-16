@@ -138,4 +138,68 @@ function M.handle_event(plugin_name, event, pattern)
     )
 end
 
+---@param path string
+---@param callback fun(data: string)
+local function read(path, callback)
+    vim.uv.fs_open(path, "r", 292, function(e, fd) -- 0o444
+        assert(fd, e)
+        vim.uv.fs_fstat(fd, function(e, stat)
+            assert(stat, e)
+            vim.uv.fs_read(fd, stat.size, 0, function(e, data)
+                assert(data, e)
+                vim.uv.fs_close(fd, function(e, success)
+                    assert(success, e)
+                end)
+                callback(data)
+            end)
+        end)
+    end)
+end
+
+---@param path string
+---@return string
+local function read_sync(path)
+    local fd = assert(vim.uv.fs_open(path, "r", 292)) -- 0o444
+    local stat = assert(vim.uv.fs_fstat(fd))
+    local data = assert(vim.uv.fs_read(fd, stat.size))
+    vim.uv.fs_close(fd, function(e, success)
+        assert(success, e)
+    end)
+    return data
+end
+
+---@type table<string, string>
+local file_contents = {}
+
+---@param path string
+function M.prefetch_file(path)
+    read(path, function(data)
+        rawset(file_contents, path, data)
+    end)
+end
+
+---@param s string
+---@param path string
+---@return function
+local function load_str(s, path)
+    return assert(loadstring(s, "@" .. path))
+end
+
+---@param path string
+function M.do_file(path)
+    local s = rawget(file_contents, path)
+    if s == nil then
+        read(path, function(s)
+            vim.schedule(load_str(s, path))
+        end)
+    else
+        load_str(s, path)()
+    end
+end
+
+---@param path string
+function M.do_file_sync(path)
+    load_str(rawget(file_contents, path) or read_sync(path), path)()
+end
+
 return M
