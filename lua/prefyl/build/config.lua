@@ -3,6 +3,9 @@ local test = require("prefyl.lib.test")
 
 ---@class prefyl.build.Config
 ---@field plugins table<string, prefyl.build.config.PluginSpec>
+local M = {}
+---@private
+M.__index = M
 
 ---@class prefyl.build.config.PluginSpec
 ---@field url string?
@@ -11,11 +14,27 @@ local test = require("prefyl.lib.test")
 ---@field deps prefyl.build.config.Deps
 ---@field lazy boolean
 ---@field cmd string[]
----@field event { event: string | string[], pattern: (string | string[])? }[]
+---@field event prefyl.build.config.Event[]
+
+---@class prefyl.build.config.Event
+---@field event string | string[]
+---@field pattern? string | string[]
 
 ---@class prefyl.build.config.Deps
 ---@field directly string[]
 ---@field recursive string[]
+
+---@class prefyl._build
+---@field plugins? table<string, prefyl._build.Plugin>
+
+---@class prefyl._build.Plugin
+---@field url string?
+---@field dir string?
+---@field enabled boolean?
+---@field deps string[]?
+---@field lazy boolean?
+---@field cmd string[]?
+---@field event string[]?
 
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
 
@@ -108,7 +127,7 @@ test.group("recurse_deps", function()
 end)
 
 ---@param event string
----@return { event: string | string[], pattern: (string | string[])? }
+---@return prefyl.build.config.Event
 local function parse_event(event)
     ---@type string, string?
     local event, pattern = unpack(vim.split(event, " "))
@@ -141,46 +160,22 @@ test.group("parse_event", function()
     end)
 end)
 
----@param config prefyl.Config
----@return prefyl.Config
-local function validate(config)
-    vim.validate({
-        config = { config, { "t" } },
-    })
-    vim.validate({
-        plugins = { config.plugins, { "t" } },
-    })
-    for name, spec in pairs(config.plugins) do
-        ---@cast spec prefyl.config.PluginSpec
-        vim.validate({
-            name = { name, "s" },
-            [name] = { spec, "t" },
-        })
-        vim.validate({
-            url = { spec.url, { "s", "nil" } },
-            dir = { spec.dir, { "s", "nil" } },
-            enabled = { spec.enabled, { "b", "nil" } },
-            deps = { spec.deps, { "t", "nil" } },
-            cond = { spec.cond, { "b", "nil" } },
-            lazy = { spec.lazy, { "b", "nil" } },
-            cmd = { spec.cmd, { "t", "nil" } },
-            init = { spec.init, { "f", "nil" } },
-            config_pre = { spec.config_pre, { "f", "nil" } },
-            config = { spec.config, { "f", "nil" } },
-        })
-    end
-
-    return config
-end
-
 ---@return prefyl.build.Config
-local function load()
-    local config = validate(require("prefyl.config"))
+function M.load()
+    ---@type boolean, prefyl._build?
+    local _, config = pcall(require, "prefyl._build")
+    if not config then
+        ---@type prefyl.build.Config
+        local build_config = {
+            plugins = {},
+        }
+        return setmetatable(build_config, M)
+    end
 
     ---@type table<string, string[]>
     local deps_map = vim.iter(config.plugins or {})
-        :fold({}, function(acc, name, spec) ---@param spec prefyl.config.PluginSpec
-            acc[name] = spec.deps or {}
+        :fold({}, function(acc, name, plugin) ---@param plugin prefyl._build.Plugin
+            acc[name] = plugin.deps or {}
             return acc
         end)
     local deps_map = recurse_deps(deps_map)
@@ -189,26 +184,27 @@ local function load()
     local build_config = {
         plugins = {},
     }
-    for name, spec in pairs(config.plugins) do
-        local cmd = spec.cmd or {}
-        local event = spec.event or {}
-        local lazy = spec.lazy
+    for name, plugin in pairs(config.plugins) do
+        local cmd = plugin.cmd or {}
+        local event = plugin.event or {}
+        local lazy = plugin.lazy
         if lazy == nil then
             lazy = 0 < #cmd or 0 < #event
         end
         ---@type prefyl.build.config.PluginSpec
-        build_config.plugins[name] = {
-            dir = spec.dir and Path.new(spec.dir) or (PLUGIN_ROOT / name),
-            url = spec.url,
+        local spec = {
+            dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name),
+            url = plugin.url,
             deps = deps_map[name],
-            enabled = spec.enabled ~= false,
+            enabled = plugin.enabled ~= false,
             lazy = lazy,
             cmd = cmd,
             event = vim.iter(event):map(parse_event):totable(),
         }
+        build_config.plugins[name] = spec
     end
 
-    return build_config
+    return setmetatable(build_config, M)
 end
 
-return load()
+return M

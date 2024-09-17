@@ -2,6 +2,7 @@ local Path = require("prefyl.lib.path")
 local str = require("prefyl.lib.str")
 
 local Chunk = require("prefyl.build.chunk")
+local Config = require("prefyl.build.config")
 local Out = require("prefyl.build.out")
 local RuntimeDir = require("prefyl.build.rtdir")
 local dump = require("prefyl.build.dump")
@@ -72,22 +73,25 @@ local function load_dependencies(deps, after)
     end
 end
 
----@param spec_var prefyl.build.Chunk
+---@param plugin_var prefyl.build.Chunk
 ---@param name string
 ---@return prefyl.build.Chunk
-local function call_spec_func(spec_var, name)
+local function call_plugin_func(plugin_var, name)
     return Chunk.if_(
-        ("%s.%s"):format(spec_var:get_output(), name),
-        Chunk.new(("pcall(%s.%s)\n"):format(spec_var:get_output(), name), { inputs = { spec_var } }),
-        { inputs = { spec_var } }
+        ("%s.%s"):format(plugin_var:get_output(), name),
+        Chunk.new(
+            ("pcall(%s.%s)\n"):format(plugin_var:get_output(), name),
+            { inputs = { plugin_var } }
+        ),
+        { inputs = { plugin_var } }
     )
 end
 
 ---@param name string
 ---@param spec prefyl.build.config.PluginSpec
----@param spec_var prefyl.build.Chunk
+---@param plugin_var prefyl.build.Chunk
 ---@return prefyl.build.chunk.Scope
-local function initialize_plugin(name, spec, spec_var)
+local function initialize_plugin(name, spec, plugin_var)
     local rtdirs = {
         RuntimeDir.new(spec.dir),
         RuntimeDir.new(spec.dir / "after"),
@@ -98,13 +102,13 @@ local function initialize_plugin(name, spec, spec_var)
             name,
             Chunk.scope()
                 :extend(load_dependencies(spec.deps.directly, false))
-                :push(call_spec_func(spec_var, "config_pre"))
+                :push(call_plugin_func(plugin_var, "config_pre"))
                 :extend(load_rtdirs(rtdirs, false))
                 :to_chunk(),
             Chunk.scope()
                 :extend(load_rtdirs(rtdirs, true))
                 :extend(load_dependencies(spec.deps.directly, true))
-                :push(call_spec_func(spec_var, "config"))
+                :push(call_plugin_func(plugin_var, "config"))
                 :to_chunk()
         )
     )
@@ -141,7 +145,7 @@ local function initialize_plugin(name, spec, spec_var)
         end
     end
 
-    scope:push(call_spec_func(spec_var, "init"))
+    scope:push(call_plugin_func(plugin_var, "init"))
 
     return scope
 end
@@ -150,24 +154,26 @@ end
 ---@param spec prefyl.build.config.PluginSpec
 ---@return prefyl.build.Chunk
 local function initialize_plugin_if_needed(name, spec)
-    local plugins_var =
-        Chunk.new('local plugins = require("prefyl.config").plugins\n', { output = "plugins" })
-    local spec_var = Chunk.new(
-        ("local spec = rawget(plugins, %q)\n"):format(name),
-        { output = "spec", inputs = { plugins_var } }
+    local plugins = Chunk.new(
+        'local plugins = require("prefyl.runtime.config").plugins\n',
+        { output = "plugins" }
+    )
+    local plugin = Chunk.new(
+        ("local plugin = plugins[%q] or {}\n"):format(name),
+        { output = "plugin", inputs = { plugins } }
     )
     local cond = vim.iter(spec.deps.recursive)
         :flatten()
         :map(function(s)
-            return ("rawget(plugins, %q)"):format(s)
+            return ("(plugins[%q] or {})"):format(s)
         end)
-        :fold("spec.cond ~= false", function(acc, spec)
+        :fold("plugin.cond ~= false", function(acc, spec)
             return ("%s and %s.cond ~= false"):format(acc, spec)
         end)
     return Chunk.if_(
         cond,
-        initialize_plugin(name, spec, spec_var):to_chunk(),
-        { inputs = { spec_var, plugins_var } }
+        initialize_plugin(name, spec, plugin):to_chunk(),
+        { inputs = { plugin, plugins } }
     )
 end
 
@@ -252,12 +258,11 @@ end
 ---@param strip boolean
 ---@return prefyl.Path
 function M.build(strip)
+    local config = Config.load()
     local out = Out.new(strip)
 
-    local config = require("prefyl.build.config")
     installer.install(config)
-    local script = generate_script(out, config)
-    out:write(script)
+    out:write(generate_script(out, config))
 
     return out:finish()
 end

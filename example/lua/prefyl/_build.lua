@@ -1,5 +1,8 @@
----@type table<string, prefyl.config.PluginSpec>
-local plugins = {}
+---@type prefyl._build
+local config = {
+    plugins = {},
+}
+local plugins = config.plugins
 
 plugins.prefyl = {
     dir = vim.uv.os_homedir() .. "/dev/github.com/futsuuu/nvim-prefyl",
@@ -19,20 +22,6 @@ plugins.telescope = {
 plugins.cmp = {
     url = "https://github.com/hrsh7th/nvim-cmp",
     lazy = true,
-    config = function()
-        local cmp = require("cmp")
-        cmp.setup({
-            sources = {
-                { name = "buffer" },
-            },
-        })
-        cmp.setup.cmdline(":", {
-            mapping = cmp.mapping.preset.cmdline(),
-            sources = cmp.config.sources({
-                { name = "cmdline" },
-            }),
-        })
-    end,
 }
 
 plugins.cmp_buffer = {
@@ -51,9 +40,6 @@ plugins.neogit = {
     url = "https://github.com/NeogitOrg/neogit",
     deps = { "plenary" },
     cmd = { "Neogit" },
-    config = function()
-        require("neogit").setup({})
-    end,
 }
 
 plugins.lspconfig = {
@@ -66,17 +52,4 @@ plugins.plenary = {
     lazy = true,
 }
 
-return {
-    plugins = plugins,
-    -- vimruntime = {
-    --     disabled_plugins = {
-    --         "matchit",
-    --         "rplugin",
-    --         "gzip",
-    --         "tarPlugin",
-    --         "zipPlugin",
-    --         "tohtml",
-    --         "tutor",
-    --     },
-    -- },
-}
+return config
