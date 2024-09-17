@@ -1,6 +1,6 @@
 local test = require("prefyl.lib.test")
 
-local handler = require("prefyl.handler.event")
+local handler = require("prefyl.runtime.handler.event")
 
 test.test("load", function()
     local loaded = false

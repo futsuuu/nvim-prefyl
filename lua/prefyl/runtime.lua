@@ -98,12 +98,12 @@ local function insert_handler_interrupter(plugin_name, fn)
     end
 end
 
-local colorscheme_handler ---@module "prefyl.handler.colorscheme"
+local colorscheme_handler ---@module "prefyl.runtime.handler.colorscheme"
 ---@param plugin_name string
 ---@param colorscheme string
 function M.handle_colorscheme(plugin_name, colorscheme)
     if colorscheme_handler == nil then
-        colorscheme_handler = require("prefyl.handler.colorscheme")
+        colorscheme_handler = require("prefyl.runtime.handler.colorscheme")
     end
     insert_handler_interrupter(
         plugin_name,
@@ -111,12 +111,12 @@ function M.handle_colorscheme(plugin_name, colorscheme)
     )
 end
 
-local user_command_handler ---@module "prefyl.handler.cmd"
+local user_command_handler ---@module "prefyl.runtime.handler.cmd"
 ---@param plugin_name string
 ---@param user_command string
 function M.handle_user_command(plugin_name, user_command)
     if user_command_handler == nil then
-        user_command_handler = require("prefyl.handler.cmd")
+        user_command_handler = require("prefyl.runtime.handler.cmd")
     end
     insert_handler_interrupter(
         plugin_name,
@@ -124,13 +124,13 @@ function M.handle_user_command(plugin_name, user_command)
     )
 end
 
-local event_handler ---@module "prefyl.handler.event"
+local event_handler ---@module "prefyl.runtime.handler.event"
 ---@param plugin_name string
 ---@param event string | string[]
 ---@param pattern (string | string[])?
 function M.handle_event(plugin_name, event, pattern)
     if event_handler == nil then
-        event_handler = require("prefyl.handler.event")
+        event_handler = require("prefyl.runtime.handler.event")
     end
     insert_handler_interrupter(
         plugin_name,
