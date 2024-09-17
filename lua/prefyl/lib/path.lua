@@ -134,6 +134,7 @@ end
 ---@return prefyl.Path
 function M:join(...)
     local components = vim.iter({ self.path, ... })
+        :map(tostring)
         :filter(function(component) ---@param component string
             return 0 < component:len()
         end)
@@ -284,6 +285,12 @@ function M:exists()
     return self:stat() ~= nil
 end
 
+---@return boolean
+function M:is_dir()
+    local stat = self:stat()
+    return stat and stat.type == "directory" or false
+end
+
 ---@param expr string
 ---@return prefyl.Path[]
 function M:glob(expr)
@@ -405,6 +412,67 @@ function M:write(data, callback)
         write(self.path, data, callback)
     else
         return write_sync(self.path, data)
+    end
+end
+
+---@overload fun(self: prefyl.Path, new: prefyl.Path, callback: fun(success: boolean?, err: string?))
+---@overload fun(self: prefyl.Path, new: prefyl.Path): success: boolean?, error: string?
+function M:link(new, callback)
+    ---@param err string?
+    ---@param success boolean?
+    local callback = callback and function(err, success)
+        callback(success, err)
+    end
+
+    local hardlink = false
+    local symlink_flags = nil ---@type uv.aliases.fs_symlink_flags?
+    if IS_WINDOWS then
+        hardlink = not self:is_dir()
+        symlink_flags = { junction = true }
+    end
+
+    if callback then
+        if hardlink then
+            vim.uv.fs_link(self.path, new.path, callback)
+        else
+            vim.uv.fs_symlink(self.path, new.path, symlink_flags, callback)
+        end
+    else
+        local success, err
+        if hardlink then
+            success, err = vim.uv.fs_link(self.path, new.path)
+        else
+            success, err = vim.uv.fs_symlink(self.path, new.path, symlink_flags)
+        end
+        return success, err
+    end
+end
+
+---@return boolean?
+---@return string?
+function M:remove()
+    if not self:exists() then
+        return true
+    end
+    local rc = vim.fn.delete(self.path, "d")
+    if rc == 0 or rc == false then
+        return true
+    else
+        return nil, "faield to remove a file or directory: " .. self.path
+    end
+end
+
+---@return boolean?
+---@return string?
+function M:remove_all()
+    if not self:exists() then
+        return true
+    end
+    local rc = vim.fn.delete(self.path, "rf")
+    if rc == 0 or rc == false then
+        return true
+    else
+        return nil, "faield to remove a file or directory: " .. self.path
     end
 end
 

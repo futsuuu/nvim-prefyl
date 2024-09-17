@@ -2,6 +2,7 @@ local Path = require("prefyl.lib.path")
 local str = require("prefyl.lib.str")
 
 local Chunk = require("prefyl.build.chunk")
+local Out = require("prefyl.build.out")
 local RuntimeDir = require("prefyl.build.rtdir")
 local dump = require("prefyl.build.dump")
 local installer = require("prefyl.build.installer")
@@ -185,17 +186,19 @@ local function is_enabled(spec, plugins)
     return true
 end
 
+---@param out prefyl.build.Out
 ---@param config prefyl.build.Config
 ---@return string
-local function generate_script(config)
+local function generate_script(out, config)
+    local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
     local s = str.dedent([[
-    -- vim:readonly:nowrap
-    rawset(package.preload, "prefyl.runtime", loadstring(%q))
+    rawset(package.preload, "prefyl.runtime", loadstring(%q, %q))
     vim.api.nvim_set_var("did_load_ftdetect", 1)
     vim.api.nvim_set_option_value("loadplugins", false, {})
     vim.api.nvim_set_option_value("runtimepath", %q, {})
     ]]):format(
-        dump(Path.prefyl_root / "lua" / "prefyl" / "runtime.lua", true),
+        dump(runtime_file, true),
+        "@" .. runtime_file:tostring(),
         vim.iter(default_runtimepaths):map(tostring):join(",")
     )
 
@@ -221,7 +224,12 @@ local function generate_script(config)
 
     for name, spec in pairs(plugins) do
         if is_enabled(spec, plugins) then
-            scope:push(initialize_plugin_if_needed(name, spec))
+            local initializer = initialize_plugin_if_needed(name, spec)
+            if spec.lazy then
+                scope:push(runtime.do_file(out:write(initializer:tostring())))
+            else
+                scope:push(initializer)
+            end
         else
             scope:push(("-- %q is disabled\n"):format(name))
         end
@@ -241,20 +249,17 @@ local function generate_script(config)
     return s
 end
 
+---@param strip boolean
 ---@return prefyl.Path
-function M.build()
+function M.build(strip)
+    local out = Out.new(strip)
+
     local config = require("prefyl.build.config")
-    local state_dir = (Path.stdpath.state / "prefyl"):ensure_dir()
-
     installer.install(config)
-    local script = generate_script(config):gsub("\\\n", "\\n")
+    local script = generate_script(out, config)
+    out:write(script)
 
-    assert(state_dir:join("main.lua"):write(script))
-
-    local bytecode = string.dump(assert(loadstring(script)), true)
-    state_dir:join("main.luac"):write(bytecode, assert)
-
-    return state_dir:join("main.lua")
+    return out:finish()
 end
 
 return M

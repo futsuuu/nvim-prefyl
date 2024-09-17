@@ -8,7 +8,6 @@ plugins.prefyl = {
 
 plugins.kanagawa = {
     url = "https://github.com/rebelot/kanagawa.nvim",
-    lazy = true,
 }
 
 plugins.telescope = {
