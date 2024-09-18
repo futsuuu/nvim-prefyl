@@ -16,8 +16,9 @@ local default_runtimepaths = nvim.default_runtimepaths()
 
 ---@param rtdirs prefyl.build.RuntimeDir[]
 ---@param after boolean
+---@param disabled_plugins prefyl.Path[]
 ---@return prefyl.build.chunk.Scope
-local function load_rtdirs(rtdirs, after)
+local function load_rtdirs(rtdirs, after, disabled_plugins)
     local scope = Chunk.scope()
 
     if not after then
@@ -43,7 +44,13 @@ local function load_rtdirs(rtdirs, after)
                 return rtdir.plugin_files
             end)
             :flatten()
-            :map(nvim.source)
+            :map(function(path) ---@param path prefyl.Path
+                if not vim.list_contains(disabled_plugins, path) then
+                    return nvim.source(path)
+                else
+                    return Chunk.new(("-- %q is disabled\n"):format(path))
+                end
+            end)
             :totable())
         :extend(nvim.augroup(
             "filetypedetect",
@@ -103,10 +110,10 @@ local function initialize_plugin(name, spec, plugin_var)
             Chunk.scope()
                 :extend(load_dependencies(spec.deps.directly, false))
                 :push(call_plugin_func(plugin_var, "config_pre"))
-                :extend(load_rtdirs(rtdirs, false))
+                :extend(load_rtdirs(rtdirs, false, spec.disabled_plugins))
                 :to_chunk(),
             Chunk.scope()
-                :extend(load_rtdirs(rtdirs, true))
+                :extend(load_rtdirs(rtdirs, true, spec.disabled_plugins))
                 :extend(load_dependencies(spec.deps.directly, true))
                 :push(call_plugin_func(plugin_var, "config"))
                 :to_chunk()
@@ -211,8 +218,8 @@ local function generate_script(out, config)
     local default_rtdirs = vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()
     s = s
         .. Chunk.scope()
-            :extend(load_rtdirs(default_rtdirs, false))
-            :extend(load_rtdirs(default_rtdirs, true))
+            :extend(load_rtdirs(default_rtdirs, false, {}))
+            :extend(load_rtdirs(default_rtdirs, true, {}))
             :to_chunk()
             :tostring()
 

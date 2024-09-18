@@ -50,6 +50,7 @@ plugins.lspconfig = {
 plugins.plenary = {
     url = "https://github.com/nvim-lua/plenary.nvim",
     lazy = true,
+    disabled_plugins = { "plenary" }, -- disable `plugin/plenary.vim`
 }
 
 return config

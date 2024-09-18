@@ -15,6 +15,7 @@ M.__index = M
 ---@field lazy boolean
 ---@field cmd string[]
 ---@field event prefyl.build.config.Event[]
+---@field disabled_plugins prefyl.Path[]
 
 ---@class prefyl.build.config.Event
 ---@field event string | string[]
@@ -35,6 +36,7 @@ M.__index = M
 ---@field lazy boolean?
 ---@field cmd string[]?
 ---@field event string[]?
+---@field disabled_plugins string[]?
 
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
 
@@ -160,6 +162,38 @@ test.group("parse_event", function()
     end)
 end)
 
+---@param dir prefyl.Path
+---@param ss string[]
+---@return prefyl.Path[]
+local function expand_disabled_plugins(dir, ss)
+    return vim.iter(ss)
+        :map(function(name) ---@param name string
+            return { dir / "plugin" / name, dir / "after" / "plugin" / name }
+        end)
+        :flatten()
+        :map(function(path) ---@param path prefyl.Path
+            local ext = path:ext()
+            if ext == "lua" or ext == "vim" then
+                return { path }
+            else
+                return { path:set_ext("lua"), path:set_ext("vim") }
+            end
+        end)
+        :flatten()
+        :totable()
+end
+
+test.test("expand_disabled_plugins", function()
+    test.assert_eq({
+        Path.new("plugin/hello.lua"),
+        Path.new("plugin/hello.vim"),
+        Path.new("after/plugin/hello.lua"),
+        Path.new("after/plugin/hello.vim"),
+        Path.new("plugin/world.vim"),
+        Path.new("after/plugin/world.vim"),
+    }, expand_disabled_plugins(Path.new(""), { "hello", "world.vim" }))
+end)
+
 ---@return prefyl.build.Config
 function M.load()
     ---@type boolean, prefyl._build?
@@ -191,15 +225,17 @@ function M.load()
         if lazy == nil then
             lazy = 0 < #cmd or 0 < #event
         end
+        local dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name)
         ---@type prefyl.build.config.PluginSpec
         local spec = {
-            dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name),
+            dir = dir,
             url = plugin.url,
             deps = deps_map[name],
             enabled = plugin.enabled ~= false,
             lazy = lazy,
             cmd = cmd,
             event = vim.iter(event):map(parse_event):totable(),
+            disabled_plugins = expand_disabled_plugins(dir, plugin.disabled_plugins or {}),
         }
         build_config.plugins[name] = spec
     end
