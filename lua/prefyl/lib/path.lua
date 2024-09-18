@@ -246,10 +246,16 @@ end)
 ---@return prefyl.Path
 function M:set_ext(extension)
     extension = extension:gsub("^%.*(.)", ".%1")
-    return M.new(self.path:gsub("%.[^%./]+$", extension))
+    local path, count = self.path:gsub("%.[^%./]+$", extension)
+    if count == 0 then
+        return M.new(path .. extension)
+    else
+        return M.new(path)
+    end
 end
 
 test.test("set_ext", function()
+    test.assert_eq(M.new("foo.baz"), M.new("foo"):set_ext("baz"))
     test.assert_eq(M.new("foo.baz"), M.new("foo.bar"):set_ext("baz"))
     test.assert_eq(M.new("foo.bar.baz"), M.new("foo.bar"):set_ext("bar.baz"))
     test.assert_eq(M.new("foo"), M.new("foo.bar"):set_ext(""))
