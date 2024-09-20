@@ -27,7 +27,7 @@ end
 ---@return prefyl.Path
 function M:finish()
     local last = assert(self.last)
-    local link = Path.stdpath.state / "prefyl" / (self.strip and "main.luac" or "main.lua")
+    local link = Path.stdpath.state / "prefyl" / "startup"
     assert(link:remove())
     assert(last:link(link))
     return link

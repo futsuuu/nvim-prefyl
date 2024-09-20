@@ -1,4 +1,4 @@
-local chunk, _ = loadfile(vim.fn.stdpath("state") .. "/prefyl/main.luac")
+local chunk, _ = loadfile(vim.fn.stdpath("state") .. "/prefyl/startup")
 if chunk then
     chunk()
 else
