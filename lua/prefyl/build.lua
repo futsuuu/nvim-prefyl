@@ -218,8 +218,8 @@ local function generate_script(out, config)
     local default_rtdirs = vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()
     s = s
         .. Chunk.scope()
-            :extend(load_rtdirs(default_rtdirs, false, {}))
-            :extend(load_rtdirs(default_rtdirs, true, {}))
+            :extend(load_rtdirs(default_rtdirs, false, config.std.disabled_plugins))
+            :extend(load_rtdirs(default_rtdirs, true, config.std.disabled_plugins))
             :to_chunk()
             :tostring()
 
@@ -265,7 +265,7 @@ end
 ---@param strip boolean
 ---@return prefyl.Path
 function M.build(strip)
-    local config = Config.load()
+    local config = Config.load(default_runtimepaths)
     local out = Out.new(strip)
 
     installer.install(config)

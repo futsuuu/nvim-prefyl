@@ -1,6 +1,18 @@
 ---@type prefyl._build
 local config = {
     plugins = {},
+    std = {
+        disabled_plugins = {
+            "matchit",
+            "rplugin",
+            "gzip",
+            "tarPlugin",
+            "zipPlugin",
+            "tohtml",
+            "tutor",
+            vim.fn.executable("man") == 0 and "man" or nil,
+        },
+    },
 }
 local plugins = config.plugins
 

@@ -2,10 +2,14 @@ local Path = require("prefyl.lib.path")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.build.Config
+---@field std prefyl.build.config.StdSpec
 ---@field plugins table<string, prefyl.build.config.PluginSpec>
 local M = {}
 ---@private
 M.__index = M
+
+---@class prefyl.build.config.StdSpec
+---@field disabled_plugins prefyl.Path[]
 
 ---@class prefyl.build.config.PluginSpec
 ---@field url string?
@@ -26,7 +30,11 @@ M.__index = M
 ---@field recursive string[]
 
 ---@class prefyl._build
+---@field std? prefyl._build.Std
 ---@field plugins? table<string, prefyl._build.Plugin>
+
+---@class prefyl._build.Std
+---@field disabled_plugins string[]?
 
 ---@class prefyl._build.Plugin
 ---@field url string?
@@ -168,10 +176,7 @@ end)
 local function expand_disabled_plugins(dir, ss)
     return vim.iter(ss)
         :map(function(name) ---@param name string
-            return { dir / "plugin" / name, dir / "after" / "plugin" / name }
-        end)
-        :flatten()
-        :map(function(path) ---@param path prefyl.Path
+            local path = dir / "plugin" / name
             local ext = path:ext()
             if ext == "lua" or ext == "vim" then
                 return { path }
@@ -187,20 +192,21 @@ test.test("expand_disabled_plugins", function()
     test.assert_eq({
         Path.new("plugin/hello.lua"),
         Path.new("plugin/hello.vim"),
-        Path.new("after/plugin/hello.lua"),
-        Path.new("after/plugin/hello.vim"),
         Path.new("plugin/world.vim"),
-        Path.new("after/plugin/world.vim"),
     }, expand_disabled_plugins(Path.new(""), { "hello", "world.vim" }))
 end)
 
+---@param default_runtimepaths prefyl.Path[]
 ---@return prefyl.build.Config
-function M.load()
+function M.load(default_runtimepaths)
     ---@type boolean, prefyl._build?
     local _, config = pcall(require, "prefyl._build")
     if not config then
         ---@type prefyl.build.Config
         local build_config = {
+            std = {
+                disabled_plugins = {},
+            },
             plugins = {},
         }
         return setmetatable(build_config, M)
@@ -214,10 +220,18 @@ function M.load()
         end)
     local deps_map = recurse_deps(deps_map)
 
-    ---@type prefyl.build.Config
-    local build_config = {
-        plugins = {},
+    ---@type prefyl.build.config.StdSpec
+    local std = {
+        disabled_plugins = vim.iter(default_runtimepaths)
+            :map(function(path) ---@param path prefyl.Path
+                return expand_disabled_plugins(path, (config.std or {}).disabled_plugins or {})
+            end)
+            :flatten()
+            :totable(),
     }
+
+    ---@type table<string, prefyl.build.config.PluginSpec>
+    local plugins = {}
     for name, plugin in pairs(config.plugins) do
         local cmd = plugin.cmd or {}
         local event = plugin.event or {}
@@ -235,11 +249,21 @@ function M.load()
             lazy = lazy,
             cmd = cmd,
             event = vim.iter(event):map(parse_event):totable(),
-            disabled_plugins = expand_disabled_plugins(dir, plugin.disabled_plugins or {}),
+            disabled_plugins = vim.iter({ dir, dir / "after" })
+                :map(function(path) ---@param path prefyl.Path
+                    return expand_disabled_plugins(path, plugin.disabled_plugins or {})
+                end)
+                :flatten()
+                :totable(),
         }
-        build_config.plugins[name] = spec
+        plugins[name] = spec
     end
 
+    ---@type prefyl.build.Config
+    local build_config = {
+        std = std,
+        plugins = plugins,
+    }
     return setmetatable(build_config, M)
 end
 
