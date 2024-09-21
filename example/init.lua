@@ -14,7 +14,7 @@ else
         })
     end
     vim.opt.runtimepath:prepend(repo_dir)
-    require("prefyl").build({ load = true })
+    require("prefyl").build({ run = true })
 end
 
 vim.cmd.colorscheme("kanagawa")
