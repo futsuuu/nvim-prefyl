@@ -464,7 +464,7 @@ function M:remove()
     if rc == 0 or rc == false then
         return true
     else
-        return nil, "faield to remove a file or directory: " .. self.path
+        return nil, "failed to remove a file or directory: " .. self.path
     end
 end
 
@@ -478,7 +478,7 @@ function M:remove_all()
     if rc == 0 or rc == false then
         return true
     else
-        return nil, "faield to remove a file or directory: " .. self.path
+        return nil, "failed to remove a file or directory: " .. self.path
     end
 end
 
