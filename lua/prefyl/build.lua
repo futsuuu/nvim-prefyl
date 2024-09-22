@@ -94,31 +94,45 @@ local function call_plugin_func(plugin_var, name)
     )
 end
 
+---@param out prefyl.build.Out
 ---@param name string
 ---@param spec prefyl.build.config.PluginSpec
 ---@param plugin_var prefyl.build.Chunk
 ---@return prefyl.build.chunk.Scope
-local function initialize_plugin(name, spec, plugin_var)
+local function initialize_plugin(out, name, spec, plugin_var)
+    local scope = Chunk.scope()
+
     local rtdirs = {
         RuntimeDir.new(spec.dir),
         RuntimeDir.new(spec.dir / "after"),
     }
-    local scope = Chunk.scope()
-    scope:push(
-        runtime.set_plugin_loader(
-            name,
-            Chunk.scope()
-                :extend(load_dependencies(spec.deps.directly, false))
-                :push(call_plugin_func(plugin_var, "config_pre"))
-                :extend(load_rtdirs(rtdirs, false, spec.disabled_plugins))
-                :to_chunk(),
-            Chunk.scope()
-                :extend(load_rtdirs(rtdirs, true, spec.disabled_plugins))
-                :extend(load_dependencies(spec.deps.directly, true))
-                :push(call_plugin_func(plugin_var, "config"))
-                :to_chunk()
-        )
-    )
+
+    local loader = Chunk.scope()
+        :extend(load_dependencies(spec.deps.directly, false))
+        :push(call_plugin_func(plugin_var, "config_pre"))
+        :extend(load_rtdirs(rtdirs, false, spec.disabled_plugins))
+        :to_chunk()
+    local after_loader = Chunk.scope()
+        :extend(load_rtdirs(rtdirs, true, spec.disabled_plugins))
+        :extend(load_dependencies(spec.deps.directly, true))
+        :push(call_plugin_func(plugin_var, "config"))
+        :to_chunk()
+    if spec.lazy then
+        local loader_file = out:write(loader:tostring())
+        local after_loader_file = out:write(after_loader:tostring())
+        scope
+            :push(runtime.prefetch_file(loader_file))
+            :push(runtime.prefetch_file(after_loader_file))
+            :push(
+                runtime.set_plugin_loader(
+                    name,
+                    runtime.do_file_sync(loader_file),
+                    runtime.do_file_sync(after_loader_file)
+                )
+            )
+    else
+        scope:push(runtime.set_plugin_loader(name, loader, after_loader))
+    end
 
     if spec.lazy then
         for _, cmd in ipairs(spec.cmd) do
@@ -157,10 +171,11 @@ local function initialize_plugin(name, spec, plugin_var)
     return scope
 end
 
+---@param out prefyl.build.Out
 ---@param name string
 ---@param spec prefyl.build.config.PluginSpec
 ---@return prefyl.build.Chunk
-local function initialize_plugin_if_needed(name, spec)
+local function initialize_plugin_if_needed(out, name, spec)
     local plugins = Chunk.new(
         'local plugins = require("prefyl.runtime.config").plugins\n',
         { output = "plugins" }
@@ -179,7 +194,7 @@ local function initialize_plugin_if_needed(name, spec)
         end)
     return Chunk.if_(
         cond,
-        initialize_plugin(name, spec, plugin):to_chunk(),
+        initialize_plugin(out, name, spec, plugin):to_chunk(),
         { inputs = { plugin, plugins } }
     )
 end
@@ -237,12 +252,7 @@ local function generate_script(out, config)
 
     for name, spec in pairs(plugins) do
         if is_enabled(spec, plugins) then
-            local initializer = initialize_plugin_if_needed(name, spec)
-            if spec.lazy then
-                scope:push(runtime.do_file(out:write(initializer:tostring())))
-            else
-                scope:push(initializer)
-            end
+            scope:push(initialize_plugin_if_needed(out, name, spec))
         else
             scope:push(("-- %q is disabled\n"):format(name))
         end
