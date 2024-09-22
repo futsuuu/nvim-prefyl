@@ -28,6 +28,11 @@ function M.default_runtimepaths()
     return vim.iter(ps):filter(Path.exists):totable()
 end
 
+---@return prefyl.Path[]
+function M.default_packpaths()
+    return { Path.new(vim.env.VIMRUNTIME) }
+end
+
 ---@param path prefyl.Path
 ---@return prefyl.build.Chunk
 function M.source(path)
