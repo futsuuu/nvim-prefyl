@@ -19,8 +19,7 @@ function M.new(strip)
         counter = 0,
         last = nil,
     }
-    self.dir:remove_all()
-    self.dir:ensure_dir()
+    self.dir:ensure_removed():ensure_dir()
     return setmetatable(self, M)
 end
 
@@ -28,8 +27,8 @@ end
 function M:finish()
     local last = assert(self.last)
     local link = Path.stdpath.state / "prefyl" / "startup"
-    assert(link:remove())
-    assert(last:link(link))
+    link:ensure_removed()
+    last:link(link)
     return link
 end
 

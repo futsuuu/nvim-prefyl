@@ -454,32 +454,18 @@ function M:link(new, callback)
     end
 end
 
----@return boolean?
----@return string?
-function M:remove()
+---@return self
+function M:ensure_removed()
     if not self:exists() then
-        return true
+        return self
     end
-    local rc = vim.fn.delete(self.path, "d")
-    if rc == 0 or rc == false then
-        return true
+    if self:is_dir() then
+        local rc = vim.fn.delete(self.path, "rf")
+        assert(rc == 0 or rc == false, "failed to remove a directory: " .. self.path)
     else
-        return nil, "failed to remove a file or directory: " .. self.path
+        assert(os.remove(self.path))
     end
-end
-
----@return boolean?
----@return string?
-function M:remove_all()
-    if not self:exists() then
-        return true
-    end
-    local rc = vim.fn.delete(self.path, "rf")
-    if rc == 0 or rc == false then
-        return true
-    else
-        return nil, "failed to remove a file or directory: " .. self.path
-    end
+    return self
 end
 
 ---@class prefyl.path.Timestamp
