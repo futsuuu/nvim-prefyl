@@ -43,9 +43,11 @@ function M.try_new(path)
 end
 
 ---@param info debuginfo
----@return prefyl.Path
+---@return prefyl.Path?
 function M.from_debuginfo(info)
-    return M.new(info.source and info.source:gsub("^@", ""))
+    if info.source and info.source:sub(1, 1) == "@" then
+        return M.new(info.source:sub(2))
+    end
 end
 
 ---@private
@@ -128,6 +130,11 @@ function M:tostring()
     else
         return (self.path:gsub("/", SEPARATOR))
     end
+end
+
+---@return string
+function M:chunkname()
+    return "@" .. self:tostring()
 end
 
 ---@param ... string | prefyl.Path
@@ -568,6 +575,6 @@ test.test("stdpath", function()
 end)
 
 M.prefyl_root =
-    assert(M.from_debuginfo(debug.getinfo(1, "S")):strip_suffix("lua/prefyl/lib/path.lua"))
+    assert(assert(M.from_debuginfo(debug.getinfo(1, "S"))):strip_suffix("lua/prefyl/lib/path.lua"))
 
 return M

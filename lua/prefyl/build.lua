@@ -226,7 +226,7 @@ local function generate_script(out, config)
     vim.api.nvim_set_option_value("runtimepath", %q, {})
     ]]):format(
         dump(runtime_file, true),
-        "@" .. runtime_file:tostring(),
+        runtime_file:chunkname(),
         vim.iter(default_runtimepaths):map(tostring):join(",")
     )
 
