@@ -232,7 +232,7 @@ function M.load(default_runtimepaths)
 
     ---@type table<string, prefyl.build.config.PluginSpec>
     local plugins = {}
-    for name, plugin in pairs(config.plugins) do
+    for name, plugin in pairs(config.plugins or {}) do
         local cmd = plugin.cmd or {}
         local event = plugin.event or {}
         local lazy = plugin.lazy
