@@ -50,6 +50,12 @@ require("prefyl").build({ debug = true })
 
 ## Development
 
+### Setup Lua Language Server
+
+```bash
+./tools/gen_luarc.lua
+```
+
 ### Testing
 
 ```bash
