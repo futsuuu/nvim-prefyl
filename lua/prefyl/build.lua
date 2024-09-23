@@ -4,6 +4,7 @@ local str = require("prefyl.lib.str")
 local Chunk = require("prefyl.build.Chunk")
 local Config = require("prefyl.build.Config")
 local Out = require("prefyl.build.Out")
+local Plugin = require("prefyl.build.Plugin")
 local RuntimeDir = require("prefyl.build.RuntimeDir")
 local dump = require("prefyl.build.dump")
 local installer = require("prefyl.build.installer")
@@ -13,206 +14,6 @@ local runtime = require("prefyl.build.runtime")
 local M = {}
 
 local default_runtimepaths = nvim.default_runtimepaths()
-
----@param rtdirs prefyl.build.RuntimeDir[]
----@param after boolean
----@param disabled_plugins prefyl.Path[]
----@return prefyl.build.Chunk.Scope
-local function load_rtdirs(rtdirs, after, disabled_plugins)
-    local scope = Chunk.scope()
-
-    if not after then
-        scope:push(nvim.add_to_rtp(vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                return rtdir.dir
-            end)
-            :filter(function(path) ---@param path prefyl.Path
-                return not vim.list_contains(default_runtimepaths, path) and path:exists()
-            end)
-            :totable()))
-        for _, rtdir in ipairs(rtdirs) do
-            scope:extend(vim.iter(rtdir.luamodules):map(runtime.set_luachunk):totable())
-        end
-    end
-
-    scope
-        :extend(vim.iter(rtdirs)
-            :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                return after == rtdir.dir:ends_with("after")
-            end)
-            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                return rtdir.plugin_files
-            end)
-            :flatten()
-            :map(function(path) ---@param path prefyl.Path
-                if not vim.list_contains(disabled_plugins, path) then
-                    return nvim.source(path)
-                else
-                    return Chunk.new(("-- %q is disabled\n"):format(path))
-                end
-            end)
-            :totable())
-        :extend(nvim.augroup(
-            "filetypedetect",
-            vim.iter(rtdirs)
-                :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                    return after == rtdir.dir:ends_with("after")
-                end)
-                :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                    return rtdir.ftdetect_files
-                end)
-                :flatten()
-                :map(nvim.source)
-                :totable()
-        ))
-
-    return scope
-end
-
----@param deps string[]
----@param after boolean
----@return prefyl.build.Chunk[]
-local function load_dependencies(deps, after)
-    if not after then
-        return vim.iter(deps):map(runtime.load_plugin):totable()
-    else
-        return vim.iter(deps):rev():map(runtime.load_after_plugin):totable()
-    end
-end
-
----@param plugin_var prefyl.build.Chunk
----@param name string
----@return prefyl.build.Chunk
-local function call_plugin_func(plugin_var, name)
-    return Chunk.if_(
-        ("%s.%s"):format(plugin_var:get_output(), name),
-        Chunk.new(
-            ("pcall(%s.%s)\n"):format(plugin_var:get_output(), name),
-            { inputs = { plugin_var } }
-        ),
-        { inputs = { plugin_var } }
-    )
-end
-
----@param out prefyl.build.Out
----@param name string
----@param spec prefyl.build.Config.PluginSpec
----@param plugin_var prefyl.build.Chunk
----@return prefyl.build.Chunk.Scope
-local function initialize_plugin(out, name, spec, plugin_var)
-    local scope = Chunk.scope()
-
-    local rtdirs = {
-        RuntimeDir.new(spec.dir),
-        RuntimeDir.new(spec.dir / "after"),
-    }
-
-    local loader = Chunk.scope()
-        :extend(load_dependencies(spec.deps.directly, false))
-        :push(call_plugin_func(plugin_var, "config_pre"))
-        :extend(load_rtdirs(rtdirs, false, spec.disabled_plugins))
-        :to_chunk()
-    local after_loader = Chunk.scope()
-        :extend(load_rtdirs(rtdirs, true, spec.disabled_plugins))
-        :extend(load_dependencies(spec.deps.directly, true))
-        :push(call_plugin_func(plugin_var, "config"))
-        :to_chunk()
-    if spec.lazy then
-        local loader_file = out:write(loader:tostring())
-        local after_loader_file = out:write(after_loader:tostring())
-        scope
-            :push(runtime.prefetch_file(loader_file))
-            :push(runtime.prefetch_file(after_loader_file))
-            :push(
-                runtime.set_plugin_loader(
-                    name,
-                    runtime.do_file_sync(loader_file),
-                    runtime.do_file_sync(after_loader_file)
-                )
-            )
-    else
-        scope:push(runtime.set_plugin_loader(name, loader, after_loader))
-    end
-
-    if spec.lazy then
-        for _, cmd in ipairs(spec.cmd) do
-            scope:push(runtime.handle_user_command(name, cmd))
-        end
-
-        for _, event in ipairs(spec.event) do
-            scope:push(runtime.handle_event(name, event.event, event.pattern))
-        end
-
-        ---@type string[]
-        local colorschemes = vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                return rtdir.colorschemes
-            end)
-            :flatten()
-            :totable()
-        for _, colorscheme in ipairs(colorschemes) do
-            scope:push(runtime.handle_colorscheme(name, colorscheme))
-        end
-
-        ---@type string[]
-        local luamodules = vim.iter(rtdirs)
-            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                return vim.tbl_keys(rtdir.luamodules)
-            end)
-            :flatten()
-            :totable()
-        for _, luamodule in ipairs(luamodules) do
-            scope:push(runtime.handle_luamodule(name, luamodule))
-        end
-    end
-
-    scope:push(call_plugin_func(plugin_var, "init"))
-
-    return scope
-end
-
----@param out prefyl.build.Out
----@param name string
----@param spec prefyl.build.Config.PluginSpec
----@return prefyl.build.Chunk
-local function initialize_plugin_if_needed(out, name, spec)
-    local plugins = Chunk.new(
-        'local plugins = require("prefyl.runtime.config").plugins\n',
-        { output = "plugins" }
-    )
-    local plugin = Chunk.new(
-        ("local plugin = plugins[%q] or {}\n"):format(name),
-        { output = "plugin", inputs = { plugins } }
-    )
-    local cond = vim.iter(spec.deps.recursive)
-        :flatten()
-        :map(function(s)
-            return ("(plugins[%q] or {})"):format(s)
-        end)
-        :fold("plugin.cond ~= false", function(acc, spec)
-            return ("%s and %s.cond ~= false"):format(acc, spec)
-        end)
-    return Chunk.if_(
-        cond,
-        initialize_plugin(out, name, spec, plugin):to_chunk(),
-        { inputs = { plugin, plugins } }
-    )
-end
-
----@param spec prefyl.build.Config.PluginSpec
----@param plugins table<string, prefyl.build.Config.PluginSpec>
----@return boolean
-local function is_enabled(spec, plugins)
-    if not spec.enabled then
-        return false
-    end
-    for _, dep in ipairs(spec.deps.recursive) do
-        if not plugins[dep].enabled then
-            return false
-        end
-    end
-    return true
-end
 
 ---@param out prefyl.build.Out
 ---@param config prefyl.build.Config
@@ -232,39 +33,32 @@ local function generate_script(out, config)
         vim.iter(nvim.default_packpaths()):map(tostring):join(",")
     )
 
-    local default_rtdirs = vim.iter(default_runtimepaths):map(RuntimeDir.new):totable()
     s = s
-        .. Chunk.scope()
-            :extend(load_rtdirs(default_rtdirs, false, config.std.disabled_plugins))
-            :extend(load_rtdirs(default_rtdirs, true, config.std.disabled_plugins))
-            :to_chunk()
+        .. Plugin.new_std(config.std, vim.iter(default_runtimepaths):map(RuntimeDir.new):totable())
+            :initialize(out)
             :tostring()
 
-    ---@type table<string, prefyl.build.Config.PluginSpec>
+    ---@type table<string, prefyl.build.Plugin>
     local plugins = vim.iter(config.plugins)
         :filter(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
             return not vim.list_contains(default_runtimepaths, spec.dir)
         end)
-        :fold({}, function(acc, name, spec)
-            acc[name] = spec
+        :fold({}, function(acc, name, spec) ---@param spec prefyl.build.Config.PluginSpec
+            acc[name] = Plugin.new(spec)
             return acc
         end)
 
     local scope = Chunk.scope()
 
-    for name, spec in pairs(plugins) do
-        if is_enabled(spec, plugins) then
-            scope:push(initialize_plugin_if_needed(out, name, spec))
-        else
-            scope:push(("-- %q is disabled\n"):format(name))
-        end
+    for _, plugin in pairs(plugins) do
+        scope:push(plugin:initialize(out))
     end
 
     scope:extend(vim.iter(plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
-            return not spec.lazy
+        :filter(function(_name, plugin) ---@param plugin prefyl.build.Plugin
+            return not plugin:is_lazy()
         end)
-        :map(function(name, _spec)
+        :map(function(name, _plugin)
             return runtime.load_plugin(name)
         end)
         :totable())

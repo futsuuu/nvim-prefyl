@@ -10,8 +10,13 @@ M.__index = M
 
 ---@class prefyl.build.Config.StdSpec
 ---@field disabled_plugins prefyl.Path[]
+M.StdSpec = {}
+---@private
+M.StdSpec.__index = M.StdSpec
 
 ---@class prefyl.build.Config.PluginSpec
+---@field parent table<string, prefyl.build.Config.PluginSpec>
+---@field name string
 ---@field url string?
 ---@field dir prefyl.Path
 ---@field enabled boolean
@@ -20,6 +25,9 @@ M.__index = M
 ---@field cmd string[]
 ---@field event prefyl.build.Config.Event[]
 ---@field disabled_plugins prefyl.Path[]
+M.PluginSpec = {}
+---@private
+M.PluginSpec.__index = M.PluginSpec
 
 ---@class prefyl.build.Config.Event
 ---@field event string | string[]
@@ -229,6 +237,7 @@ function M.load(default_runtimepaths)
             :flatten()
             :totable(),
     }
+    setmetatable(std, M.StdSpec)
 
     ---@type table<string, prefyl.build.Config.PluginSpec>
     local plugins = {}
@@ -242,6 +251,8 @@ function M.load(default_runtimepaths)
         local dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name)
         ---@type prefyl.build.Config.PluginSpec
         local spec = {
+            parent = plugins,
+            name = name,
             dir = dir,
             url = plugin.url,
             deps = deps_map[name],
@@ -256,6 +267,7 @@ function M.load(default_runtimepaths)
                 :flatten()
                 :totable(),
         }
+        setmetatable(spec, M.PluginSpec)
         plugins[name] = spec
     end
 
