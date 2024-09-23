@@ -1,10 +1,10 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 local str = require("prefyl.lib.str")
 
-local Chunk = require("prefyl.build.chunk")
-local Config = require("prefyl.build.config")
-local Out = require("prefyl.build.out")
-local RuntimeDir = require("prefyl.build.rtdir")
+local Chunk = require("prefyl.build.Chunk")
+local Config = require("prefyl.build.Config")
+local Out = require("prefyl.build.Out")
+local RuntimeDir = require("prefyl.build.RuntimeDir")
 local dump = require("prefyl.build.dump")
 local installer = require("prefyl.build.installer")
 local nvim = require("prefyl.build.nvim")
@@ -17,7 +17,7 @@ local default_runtimepaths = nvim.default_runtimepaths()
 ---@param rtdirs prefyl.build.RuntimeDir[]
 ---@param after boolean
 ---@param disabled_plugins prefyl.Path[]
----@return prefyl.build.chunk.Scope
+---@return prefyl.build.Chunk.Scope
 local function load_rtdirs(rtdirs, after, disabled_plugins)
     local scope = Chunk.scope()
 
@@ -96,9 +96,9 @@ end
 
 ---@param out prefyl.build.Out
 ---@param name string
----@param spec prefyl.build.config.PluginSpec
+---@param spec prefyl.build.Config.PluginSpec
 ---@param plugin_var prefyl.build.Chunk
----@return prefyl.build.chunk.Scope
+---@return prefyl.build.Chunk.Scope
 local function initialize_plugin(out, name, spec, plugin_var)
     local scope = Chunk.scope()
 
@@ -173,7 +173,7 @@ end
 
 ---@param out prefyl.build.Out
 ---@param name string
----@param spec prefyl.build.config.PluginSpec
+---@param spec prefyl.build.Config.PluginSpec
 ---@return prefyl.build.Chunk
 local function initialize_plugin_if_needed(out, name, spec)
     local plugins = Chunk.new(
@@ -199,8 +199,8 @@ local function initialize_plugin_if_needed(out, name, spec)
     )
 end
 
----@param spec prefyl.build.config.PluginSpec
----@param plugins table<string, prefyl.build.config.PluginSpec>
+---@param spec prefyl.build.Config.PluginSpec
+---@param plugins table<string, prefyl.build.Config.PluginSpec>
 ---@return boolean
 local function is_enabled(spec, plugins)
     if not spec.enabled then
@@ -240,9 +240,9 @@ local function generate_script(out, config)
             :to_chunk()
             :tostring()
 
-    ---@type table<string, prefyl.build.config.PluginSpec>
+    ---@type table<string, prefyl.build.Config.PluginSpec>
     local plugins = vim.iter(config.plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.build.config.PluginSpec
+        :filter(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
             return not vim.list_contains(default_runtimepaths, spec.dir)
         end)
         :fold({}, function(acc, name, spec)
@@ -261,7 +261,7 @@ local function generate_script(out, config)
     end
 
     scope:extend(vim.iter(plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.build.config.PluginSpec
+        :filter(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
             return not spec.lazy
         end)
         :map(function(name, _spec)

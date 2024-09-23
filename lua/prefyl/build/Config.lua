@@ -1,31 +1,31 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.build.Config
----@field std prefyl.build.config.StdSpec
----@field plugins table<string, prefyl.build.config.PluginSpec>
+---@field std prefyl.build.Config.StdSpec
+---@field plugins table<string, prefyl.build.Config.PluginSpec>
 local M = {}
 ---@private
 M.__index = M
 
----@class prefyl.build.config.StdSpec
+---@class prefyl.build.Config.StdSpec
 ---@field disabled_plugins prefyl.Path[]
 
----@class prefyl.build.config.PluginSpec
+---@class prefyl.build.Config.PluginSpec
 ---@field url string?
 ---@field dir prefyl.Path
 ---@field enabled boolean
----@field deps prefyl.build.config.Deps
+---@field deps prefyl.build.Config.Deps
 ---@field lazy boolean
 ---@field cmd string[]
----@field event prefyl.build.config.Event[]
+---@field event prefyl.build.Config.Event[]
 ---@field disabled_plugins prefyl.Path[]
 
----@class prefyl.build.config.Event
+---@class prefyl.build.Config.Event
 ---@field event string | string[]
 ---@field pattern? string | string[]
 
----@class prefyl.build.config.Deps
+---@class prefyl.build.Config.Deps
 ---@field directly string[]
 ---@field recursive string[]
 
@@ -68,9 +68,9 @@ test.test("uniq", function()
 end)
 
 ---@param map table<string, string[]>
----@return table<string, prefyl.build.config.Deps>
+---@return table<string, prefyl.build.Config.Deps>
 local function recurse_deps(map)
-    ---@type table<string, prefyl.build.config.Deps>
+    ---@type table<string, prefyl.build.Config.Deps>
     local r = {}
     for name, deps in pairs(map) do
         deps = uniq(deps)
@@ -137,7 +137,7 @@ test.group("recurse_deps", function()
 end)
 
 ---@param event string
----@return prefyl.build.config.Event
+---@return prefyl.build.Config.Event
 local function parse_event(event)
     ---@type string, string?
     local event, pattern = unpack(vim.split(event, " "))
@@ -220,7 +220,7 @@ function M.load(default_runtimepaths)
         end)
     local deps_map = recurse_deps(deps_map)
 
-    ---@type prefyl.build.config.StdSpec
+    ---@type prefyl.build.Config.StdSpec
     local std = {
         disabled_plugins = vim.iter(default_runtimepaths)
             :map(function(path) ---@param path prefyl.Path
@@ -230,7 +230,7 @@ function M.load(default_runtimepaths)
             :totable(),
     }
 
-    ---@type table<string, prefyl.build.config.PluginSpec>
+    ---@type table<string, prefyl.build.Config.PluginSpec>
     local plugins = {}
     for name, plugin in pairs(config.plugins or {}) do
         local cmd = plugin.cmd or {}
@@ -240,7 +240,7 @@ function M.load(default_runtimepaths)
             lazy = 0 < #cmd or 0 < #event
         end
         local dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name)
-        ---@type prefyl.build.config.PluginSpec
+        ---@type prefyl.build.Config.PluginSpec
         local spec = {
             dir = dir,
             url = plugin.url,

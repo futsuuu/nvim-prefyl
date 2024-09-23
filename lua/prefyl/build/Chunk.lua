@@ -317,16 +317,16 @@ test.test("function", function()
     )
 end)
 
----@class prefyl.build.chunk.Scope: { [integer]: prefyl.build.Chunk }
+---@class prefyl.build.Chunk.Scope: { [integer]: prefyl.build.Chunk }
 local Scope = {}
 ---@private
 Scope.__index = Scope
 
 ---@param default prefyl.build.Chunk[]?
----@return prefyl.build.chunk.Scope
+---@return prefyl.build.Chunk.Scope
 function M.scope(default)
     if (getmetatable(default) or {}).__index == Scope then
-        ---@cast default prefyl.build.chunk.Scope
+        ---@cast default prefyl.build.Chunk.Scope
         return default
     end
     return setmetatable(default or {}, Scope)

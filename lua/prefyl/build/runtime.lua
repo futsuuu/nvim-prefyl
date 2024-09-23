@@ -1,4 +1,4 @@
-local Chunk = require("prefyl.build.chunk")
+local Chunk = require("prefyl.build.Chunk")
 
 local M = {}
 

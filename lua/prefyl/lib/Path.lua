@@ -475,7 +475,7 @@ function M:ensure_removed()
     return self
 end
 
----@class prefyl.path.Timestamp
+---@class prefyl.Path.Timestamp
 ---@field private sec integer
 ---@field private nsec integer
 local Timestamp = {}
@@ -483,19 +483,19 @@ local Timestamp = {}
 Timestamp.__index = Timestamp
 
 ---@param time { sec: integer, nsec: integer }?
----@return prefyl.path.Timestamp
+---@return prefyl.Path.Timestamp
 local function timestamp(time)
     return setmetatable(time or { sec = 0, nsec = 0 }, Timestamp)
 end
 
 ---@private
----@param other prefyl.path.Timestamp
+---@param other prefyl.Path.Timestamp
 ---@return boolean
 function Timestamp:__eq(other)
     return self.sec == other.sec and self.nsec == other.nsec
 end
 ---@private
----@param other prefyl.path.Timestamp
+---@param other prefyl.Path.Timestamp
 ---@return boolean
 function Timestamp:__lt(other)
     if self.sec == other.sec then
@@ -505,7 +505,7 @@ function Timestamp:__lt(other)
     end
 end
 ---@private
----@param other prefyl.path.Timestamp
+---@param other prefyl.Path.Timestamp
 ---@return boolean
 function Timestamp:__le(other)
     if self.sec == other.sec then
@@ -521,31 +521,31 @@ test.test("timestamp", function()
     test.assert_eq(timestamp({ sec = 0, nsec = 1 }), timestamp({ sec = 0, nsec = 1 }))
 end)
 
----@return prefyl.path.Timestamp
+---@return prefyl.Path.Timestamp
 function M:birthtime()
     local s = self:stat()
     return timestamp(s and s.birthtime)
 end
 
----@return prefyl.path.Timestamp
+---@return prefyl.Path.Timestamp
 function M:ctime()
     local s = self:stat()
     return timestamp(s and s.ctime)
 end
 
----@return prefyl.path.Timestamp
+---@return prefyl.Path.Timestamp
 function M:mtime()
     local s = self:stat()
     return timestamp(s and s.mtime)
 end
 
----@return prefyl.path.Timestamp
+---@return prefyl.Path.Timestamp
 function M:atime()
     local s = self:stat()
     return timestamp(s and s.atime)
 end
 
----@class prefyl.path.StdPath
+---@class prefyl.Path.StdPath
 ---@field cache prefyl.Path
 ---@field config prefyl.Path
 ---@field data prefyl.Path
@@ -575,6 +575,6 @@ test.test("stdpath", function()
 end)
 
 M.prefyl_root =
-    assert(assert(M.from_debuginfo(debug.getinfo(1, "S"))):strip_suffix("lua/prefyl/lib/path.lua"))
+    assert(assert(M.from_debuginfo(debug.getinfo(1, "S"))):strip_suffix("lua/prefyl/lib/Path.lua"))
 
 return M

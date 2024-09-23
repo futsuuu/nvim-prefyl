@@ -1,4 +1,4 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 
 local LUAC_DIR = Path.stdpath.cache / "prefyl" / "luac"
 

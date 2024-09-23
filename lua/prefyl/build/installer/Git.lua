@@ -1,4 +1,4 @@
-local Base = require("prefyl.build.installer.base")
+local Base = require("prefyl.build.installer.Base")
 
 ---@class prefyl.build.installer.Git: prefyl.build.Installer
 ---@field private url string

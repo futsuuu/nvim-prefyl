@@ -3,7 +3,7 @@
 ---@field log string?
 ---@field is_finished boolean
 
-local Git = require("prefyl.build.installer.git")
+local Git = require("prefyl.build.installer.Git")
 
 local M = {}
 
@@ -11,7 +11,7 @@ local M = {}
 function M.install(config)
     ---@type prefyl.build.Installer[]
     local installers = vim.iter(config.plugins)
-        :map(function(_name, spec) ---@param spec prefyl.build.config.PluginSpec
+        :map(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
             return spec.enabled and spec.url and Git.new(spec.dir, spec.url)
         end)
         :filter(function(i) ---@param i prefyl.build.Installer?

@@ -1,4 +1,4 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 
 ---@class prefyl.build.Out
 ---@field private strip boolean

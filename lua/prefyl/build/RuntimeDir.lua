@@ -1,9 +1,9 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 local test = require("prefyl.lib.test")
 
 local dump = require("prefyl.build.dump")
 
----@enum prefyl.rtdir.DirKind
+---@enum prefyl.build.RuntimeDir.DirKind
 local DirKind = {
     PLUGIN = 1,
     FTDETECT = 2,
@@ -14,7 +14,7 @@ local DirKind = {
     SYNTAX = 7,
 }
 
----@type table<prefyl.rtdir.DirKind, string[]>
+---@type table<prefyl.build.RuntimeDir.DirKind, string[]>
 local patterns = {
     -- load when added to `&runtimepath`
     [DirKind.PLUGIN] = { "plugin/**/*.{vim,lua}" },
@@ -96,7 +96,7 @@ local M = {}
 ---@param dir prefyl.Path
 ---@return prefyl.build.RuntimeDir
 function M.new(dir)
-    local files = {} ---@type table<prefyl.rtdir.DirKind, prefyl.Path[]>
+    local files = {} ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
     for kind, ps in pairs(patterns) do
         files[kind] = vim.iter(ps)
             :map(function(p)

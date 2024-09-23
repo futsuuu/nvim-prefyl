@@ -1,7 +1,7 @@
-local Path = require("prefyl.lib.path")
+local Path = require("prefyl.lib.Path")
 local test = require("prefyl.lib.test")
 
-local Chunk = require("prefyl.build.chunk")
+local Chunk = require("prefyl.build.Chunk")
 
 local M = {}
 
@@ -45,7 +45,7 @@ end
 
 ---@param group string
 ---@param body prefyl.build.Chunk[]
----@return prefyl.build.chunk.Scope
+---@return prefyl.build.Chunk.Scope
 function M.augroup(group, body)
     if 0 < #body then
         return Chunk.scope(vim.iter(body):totable())
