@@ -30,13 +30,13 @@ function M.new(spec)
 end
 
 ---@param spec prefyl.build.Config.StdSpec
----@param rtdirs prefyl.build.RuntimeDir[]
+---@param paths prefyl.Path[]
 ---@return prefyl.build.Plugin
-function M.new_std(spec, rtdirs)
+function M.new_std(spec, paths)
     ---@type prefyl.build.Plugin
     local self = {
         spec = spec,
-        rtdirs = rtdirs,
+        rtdirs = vim.iter(paths):map(RuntimeDir.new):totable(),
     }
     return setmetatable(self, M)
 end

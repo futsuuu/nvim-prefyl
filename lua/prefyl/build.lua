@@ -5,7 +5,6 @@ local Chunk = require("prefyl.build.Chunk")
 local Config = require("prefyl.build.Config")
 local Out = require("prefyl.build.Out")
 local Plugin = require("prefyl.build.Plugin")
-local RuntimeDir = require("prefyl.build.RuntimeDir")
 local dump = require("prefyl.build.dump")
 local installer = require("prefyl.build.installer")
 local nvim = require("prefyl.build.nvim")
@@ -13,12 +12,16 @@ local runtime = require("prefyl.build.runtime")
 
 local M = {}
 
-local default_runtimepaths = nvim.default_runtimepaths()
+---@param strip boolean
+---@return prefyl.Path
+function M.build(strip)
+    local default_runtimepaths = nvim.default_runtimepaths()
+    local config = Config.load(default_runtimepaths)
 
----@param out prefyl.build.Out
----@param config prefyl.build.Config
----@return string
-local function generate_script(out, config)
+    installer.install(config)
+
+    local out = Out.new(strip)
+
     local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
     local s = str.dedent([[
     rawset(package.preload, "prefyl.runtime", loadstring(%q, %q))
@@ -26,55 +29,35 @@ local function generate_script(out, config)
     vim.api.nvim_set_option_value("loadplugins", false, {})
     vim.api.nvim_set_option_value("packpath", %q, {})
     ]]):format(
-        dump(runtime_file, true),
+        dump(runtime_file, strip),
         runtime_file:chunkname(),
         vim.iter(nvim.default_packpaths()):map(tostring):join(",")
     )
 
-    s = s
-        .. Plugin.new_std(config.std, vim.iter(default_runtimepaths):map(RuntimeDir.new):totable())
-            :initialize(out)
-            :tostring()
-
-    ---@type table<string, prefyl.build.Plugin>
-    local plugins = vim.iter(config.plugins)
-        :filter(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
-            return not vim.list_contains(default_runtimepaths, spec.dir)
-        end)
-        :fold({}, function(acc, name, spec) ---@param spec prefyl.build.Config.PluginSpec
-            acc[name] = Plugin.new(spec)
-            return acc
-        end)
+    s = s .. Plugin.new_std(config.std, default_runtimepaths):initialize(out):tostring()
 
     local scope = Chunk.scope()
+
+    local plugins = {} ---@type table<string, prefyl.build.Plugin>
+    for name, spec in pairs(config.plugins) do
+        if not vim.list_contains(default_runtimepaths, spec.dir) then
+            plugins[name] = Plugin.new(spec)
+        end
+    end
 
     for _, plugin in pairs(plugins) do
         scope:push(plugin:initialize(out))
     end
 
-    scope:extend(vim.iter(plugins)
-        :filter(function(_name, plugin) ---@param plugin prefyl.build.Plugin
-            return not plugin:is_lazy()
-        end)
-        :map(function(name, _plugin)
-            return runtime.load_plugin(name)
-        end)
-        :totable())
+    for name, plugin in pairs(plugins) do
+        if not plugin:is_lazy() then
+            scope:push(runtime.load_plugin(name))
+        end
+    end
 
     s = s .. scope:to_chunk():tostring()
 
-    return s
-end
-
----@param strip boolean
----@return prefyl.Path
-function M.build(strip)
-    local config = Config.load(default_runtimepaths)
-    local out = Out.new(strip)
-
-    installer.install(config)
-    out:write(generate_script(out, config))
-
+    out:write(s)
     return out:finish()
 end
 
