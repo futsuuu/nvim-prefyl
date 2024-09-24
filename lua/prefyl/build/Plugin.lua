@@ -56,6 +56,8 @@ function M:initialize(out)
 
     local loader = Chunk.scope()
         :extend(self:load_dependencies(false))
+        :push(self:set_rtp())
+        :extend(self:set_luachunks())
         :push(self:call_rt_hook("config_pre"))
         :extend(self:load_rtdirs(false, self.spec.disabled_plugins))
     local after_loader = Chunk.scope()
@@ -150,22 +152,7 @@ end
 ---@param disabled_plugins prefyl.Path[]
 ---@return prefyl.build.Chunk.Scope
 function M:load_rtdirs(after, disabled_plugins)
-    local scope = Chunk.scope()
-
-    if not after then
-        if not self:is_std() then
-            scope:push(nvim.add_to_rtp(vim.iter(self.rtdirs)
-                :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                    return rtdir.dir
-                end)
-                :totable()))
-        end
-        for _, rtdir in ipairs(self.rtdirs) do
-            scope:extend(vim.iter(rtdir.luamodules):map(runtime.set_luachunk):totable())
-        end
-    end
-
-    scope
+    return Chunk.scope()
         :extend(vim.iter(self.rtdirs)
             :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return after == rtdir.dir:ends_with("after")
@@ -195,7 +182,30 @@ function M:load_rtdirs(after, disabled_plugins)
                 :map(nvim.source)
                 :totable()
         ))
+end
 
+---@nodiscard
+---@return prefyl.build.Chunk
+function M:set_rtp()
+    local paths = vim.iter(self.rtdirs)
+        :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
+            return rtdir.dir
+        end)
+        :totable()
+    if self:is_std() then
+        return nvim.set_rtp(paths)
+    else
+        return nvim.add_to_rtp(paths)
+    end
+end
+
+---@nodiscard
+---@return prefyl.build.Chunk.Scope
+function M:set_luachunks()
+    local scope = Chunk.scope()
+    for _, rtdir in ipairs(self.rtdirs) do
+        scope:extend(vim.iter(rtdir.luamodules):map(runtime.set_luachunk):totable())
+    end
     return scope
 end
 

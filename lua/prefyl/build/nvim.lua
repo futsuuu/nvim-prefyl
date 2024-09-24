@@ -33,6 +33,7 @@ function M.default_packpaths()
     return { Path.new(vim.env.VIMRUNTIME) }
 end
 
+---@nodiscard
 ---@param path prefyl.Path
 ---@return prefyl.build.Chunk
 function M.source(path)
@@ -43,6 +44,7 @@ function M.source(path)
     end
 end
 
+---@nodiscard
 ---@param group string
 ---@param body prefyl.build.Chunk[]
 ---@return prefyl.build.Chunk.Scope
@@ -56,6 +58,17 @@ function M.augroup(group, body)
     end
 end
 
+---@nodiscard
+---@param paths prefyl.Path[]
+function M.set_rtp(paths)
+    return Chunk.new(
+        ('vim.api.nvim_set_option_value("runtimepath", %q, {})\n'):format(
+            vim.iter(paths):map(tostring):join(",")
+        )
+    )
+end
+
+---@nodiscard
 ---@param paths prefyl.Path[]
 ---@return prefyl.build.Chunk
 function M.add_to_rtp(paths)
@@ -65,7 +78,7 @@ function M.add_to_rtp(paths)
         if path:ends_with("after") then
             after = after .. "," .. path:tostring()
         else
-            noafter = path:tostring() .. "," .. noafter
+            noafter = noafter .. path:tostring() .. ","
         end
     end
     if noafter == "" and after == "" then
@@ -84,9 +97,9 @@ end
 
 test.test("add_to_rtp", function()
     local rtp = 'vim.api.nvim_get_option_value("runtimepath", {})'
-    local result = ('vim.api.nvim_set_option_value("runtimepath", "/c/d,/a/b," .. %s .. ",/a/b/after,/c/d/after", {})\n')
+    local result = ('vim.api.nvim_set_option_value("runtimepath", "/a/b,/c/d," .. %s .. ",/a/b/after,/c/d/after", {})\n')
         :format(rtp)
-        :gsub("/", Path.separator() == "\\" and "\\\\" or "/")
+        :gsub([[/]], Path.separator() == [[\]] and [[\\]] or [[/]])
     test.assert_eq(
         Chunk.new(result),
         M.add_to_rtp({

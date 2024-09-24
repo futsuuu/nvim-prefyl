@@ -24,12 +24,10 @@ local function generate_script(out, config)
     rawset(package.preload, "prefyl.runtime", loadstring(%q, %q))
     vim.api.nvim_set_var("did_load_ftdetect", 1)
     vim.api.nvim_set_option_value("loadplugins", false, {})
-    vim.api.nvim_set_option_value("runtimepath", %q, {})
     vim.api.nvim_set_option_value("packpath", %q, {})
     ]]):format(
         dump(runtime_file, true),
         runtime_file:chunkname(),
-        vim.iter(default_runtimepaths):map(tostring):join(","),
         vim.iter(nvim.default_packpaths()):map(tostring):join(",")
     )
 
