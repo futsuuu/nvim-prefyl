@@ -233,23 +233,25 @@ function M:setup_lazy_handlers()
     end
 
     ---@type string[]
-    local colorschemes = vim.iter(self.rtdirs)
-        :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-            return rtdir.colorschemes
-        end)
-        :flatten()
-        :totable()
+    local colorschemes = (not spec.colorscheme) and {}
+        or vim.iter(self.rtdirs)
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
+                return rtdir.colorschemes
+            end)
+            :flatten()
+            :totable()
     for _, colorscheme in ipairs(colorschemes) do
         scope:push(runtime.handle_colorscheme(spec.name, colorscheme))
     end
 
     ---@type string[]
-    local luamodules = vim.iter(self.rtdirs)
-        :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-            return vim.tbl_keys(rtdir.luamodules)
-        end)
-        :flatten()
-        :totable()
+    local luamodules = (not spec.luamodule) and {}
+        or vim.iter(self.rtdirs)
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
+                return vim.tbl_keys(rtdir.luamodules)
+            end)
+            :flatten()
+            :totable()
     for _, luamodule in ipairs(luamodules) do
         scope:push(runtime.handle_luamodule(spec.name, luamodule))
     end

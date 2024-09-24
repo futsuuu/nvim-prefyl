@@ -24,6 +24,8 @@ M.StdSpec.__index = M.StdSpec
 ---@field lazy boolean
 ---@field cmd string[]
 ---@field event prefyl.build.Config.Event[]
+---@field luamodule boolean
+---@field colorscheme boolean
 ---@field disabled_plugins prefyl.Path[]
 M.PluginSpec = {}
 ---@private
@@ -52,6 +54,8 @@ M.PluginSpec.__index = M.PluginSpec
 ---@field lazy boolean?
 ---@field cmd string[]?
 ---@field event string[]?
+---@field luamodule boolean?
+---@field colorscheme boolean?
 ---@field disabled_plugins string[]?
 
 local PLUGIN_ROOT = Path.stdpath.data / "prefyl" / "plugins"
@@ -244,10 +248,18 @@ function M.load(default_runtimepaths)
     for name, plugin in pairs(config.plugins or {}) do
         local cmd = plugin.cmd or {}
         local event = plugin.event or {}
+        local luamodule = plugin.luamodule or false
+        local colorscheme = plugin.colorscheme or false
         local lazy = plugin.lazy
         if lazy == nil then
-            lazy = 0 < #cmd or 0 < #event
+            lazy = 0 < #cmd or 0 < #event or luamodule or colorscheme
+        elseif lazy == false then
+            cmd = {}
+            event = {}
+            luamodule = false
+            colorscheme = false
         end
+
         local dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name)
         ---@type prefyl.build.Config.PluginSpec
         local spec = {
@@ -260,6 +272,8 @@ function M.load(default_runtimepaths)
             lazy = lazy,
             cmd = cmd,
             event = vim.iter(event):map(parse_event):totable(),
+            luamodule = luamodule,
+            colorscheme = colorscheme,
             disabled_plugins = vim.iter({ dir, dir / "after" })
                 :map(function(path) ---@param path prefyl.Path
                     return expand_disabled_plugins(path, plugin.disabled_plugins or {})
