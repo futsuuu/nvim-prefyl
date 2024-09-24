@@ -1,7 +1,6 @@
 # nvim-prefyl
 
-nvim-prefyl is a super-fast plugin manager for Neovim written in Lua.
-Its main purpose is **to reduce filesystem I/O** when starting Neovim and loading plugins.
+nvim-prefyl is a super-fast plugin manager for Neovim that focuses on reducing file I/O during Neovim startup and plugin loading.
 
 ## Features
 
@@ -11,7 +10,7 @@ Its main purpose is **to reduce filesystem I/O** when starting Neovim and loadin
 
 ## Requirements
 
-- Neovim (stable version)
+- Neovim stable+ (needs to be built with LuaJIT)
 - Git
 
 ## Startup script
@@ -50,13 +49,13 @@ require("prefyl").build({ debug = true })
 
 ## Development
 
-### Setup Lua Language Server
+### Setting up Lua Language Server
 
 ```bash
 ./tools/gen_luarc.lua
 ```
 
-### Testing
+### Running tests
 
 ```bash
 ./lua/prefyl/lib/test.lua
