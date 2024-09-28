@@ -1,13 +1,17 @@
 #!/usr/bin/env -S nvim -l
 
 if not vim.uv.fs_stat("libs") then
-    vim.cmd("!git clone --depth=1 --branch=stable --no-checkout https://github.com/neovim/neovim libs/neovim")
+    vim.cmd(
+        "!git clone "
+            .. "--depth=1 --branch=stable --no-checkout "
+            .. "https://github.com/neovim/neovim libs/neovim"
+    )
     vim.cmd("!git -C libs/neovim sparse-checkout set runtime/lua")
     vim.cmd("!git -C libs/neovim checkout")
 
     vim.cmd("!git clone --depth=1 https://github.com/Bilal2453/luvit-meta.git libs/luvit")
-    vim.fn.mkdir("libs/uv/library", "p")
-    assert(vim.uv.fs_link("libs/luvit/library/uv.lua", "libs/uv/library/uv.lua"))
+    vim.fn.mkdir("libs/luv/library", "p")
+    assert(vim.uv.fs_link("libs/luvit/library/uv.lua", "libs/luv/library/luv.lua"))
 end
 
 local config = {
@@ -21,7 +25,7 @@ local config = {
         library = {
             "lua",
             "libs/neovim/runtime/lua",
-            "libs/uv/library",
+            "libs/luv/library",
         },
     },
     diagnostics = {
