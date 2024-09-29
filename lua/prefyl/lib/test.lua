@@ -30,12 +30,20 @@ local function get_title()
     return table.concat(name_stack, " :: ")
 end
 
+---@param path string
+---@return string path relative
+local function normalize_path(path)
+    local path = assert(vim.uv.fs_realpath(path)):gsub("\\", "/")
+    local cwd = assert(vim.uv.cwd()):gsub("\\", "/") .. "/"
+    return (path:gsub(vim.pesc(cwd), ""))
+end
+
 ---@return boolean
 local function is_called()
     return running
         and (
             name_stack[1] == nil
-            or name_stack[1] == debug.getinfo(3, "S").source:gsub("^@", ""):gsub("\\", "/")
+            or name_stack[1] == normalize_path(debug.getinfo(3, "S").source:gsub("^@", ""))
         )
 end
 
@@ -137,7 +145,25 @@ function M.assert_eq(left, right)
     )
 end
 
-if arg[0] and arg[0]:gsub("\\", "/"):find("lua/prefyl/lib/test.lua", nil, true) then
+---@param relpath string
+---@return string
+local function module_name(relpath)
+    return (relpath:gsub("^lua/", ""):gsub("%.lua$", ""):gsub("/init$", ""):gsub("/", "."))
+end
+
+---@param fn function
+local function reset_modules(fn)
+    local old = vim.tbl_keys(package.loaded)
+    fn()
+    local new = vim.tbl_keys(package.loaded)
+    for _, modname in ipairs(new) do
+        if not vim.list_contains(old, modname) then
+            package.loaded[modname] = nil
+        end
+    end
+end
+
+if arg[0] and normalize_path(arg[0]) == "lua/prefyl/lib/test.lua" then
     package.loaded["prefyl.lib.test"] = M
     vim.opt.runtimepath:prepend(".")
     running = true
@@ -147,8 +173,12 @@ if arg[0] and arg[0]:gsub("\\", "/"):find("lua/prefyl/lib/test.lua", nil, true) 
     end, { limit = math.huge, type = "file", path = "lua" })
 
     for _, lua_file in ipairs(lua_files) do
+        local lua_file = normalize_path(lua_file)
+
         M.group(lua_file, { defer = false }, function()
-            dofile(lua_file)
+            reset_modules(function()
+                require(module_name(lua_file))
+            end)
         end)
     end
 
