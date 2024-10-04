@@ -7,42 +7,31 @@ local async = require("prefyl.lib.async")
 local list = require("prefyl.lib.list")
 local test = require("prefyl.lib.test")
 
---- Works on Lua 5.1 and Lua 5.2
----@return thread?
-local function running()
-    local thread, ismain = coroutine.running()
-    if not ismain then
-        return thread
-    end
-end
-
 ---@nodiscard
 ---@generic A, B, C, D, E, F, G, T, U, V, W, X, Y, Z
 ---@param executor fun(finish: fun(a: A?, b: B?, c: C?, d: D?, e: E?, f: F?, g: G?)): T?, U?, V?, W?, X?, Y?, Z?
 ---@return prefyl.async.Future<A?, B?, C?, D?, E?, F?, G?>
 ---@return T?, U?, V?, W?, X?, Y?, Z?
 function M.new(executor)
+    local co = nil ---@type thread?
     local result = nil ---@type table?
-    local yielded = false
 
     local finished = false
-    local co = running()
     local function finish(...)
         if finished then
             return
         end
         finished = true
-        if not yielded then
+        if co then
+            assert(coroutine.resume(co, ...))
+        else
             result = list.pack(...)
-            return
         end
-        assert(coroutine.resume(assert(co), ...))
     end
 
     local function await()
         if not result then
-            assert(co, "cannot yield from the main thread")
-            yielded = true
+            co = assert(coroutine.running(), "cannot yield from the main thread")
             result = list.pack(coroutine.yield())
         end
         return list.unpack(result)
@@ -66,9 +55,7 @@ test.group("new", function()
     end)
 
     test.test("resume", function()
-        async.block_on(function()
-            M.new(vim.schedule).await()
-        end)
+        async.block_on(M.new(vim.schedule))
     end)
 end)
 

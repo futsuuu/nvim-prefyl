@@ -1,8 +1,6 @@
 local M = {}
 package.loaded[...] = M
 
-local list = require("prefyl.lib.list")
-
 local Future = require("prefyl.lib.async.Future")
 
 M.Future = Future
@@ -20,18 +18,20 @@ function M.async(func)
 end
 
 ---@generic T, U, V, W, X, Y, Z
----@param func fun(): T?, U?, V?, W?, X?, Y?, Z?
+---@param future prefyl.async.Future<T?, U?, V?, W?, X?, Y?, Z?>
 ---@return T?, U?, V?, W?, X?, Y?, Z?
-function M.block_on(func)
-    local result = nil
-    local _ = M.async(function()
-        result = list.pack(func())
+function M.block_on(future)
+    local finished = false
+    local wrapper = M.async(function()
+        return (function(...)
+            finished = true
+            return ...
+        end)(future.await())
     end)
     vim.wait(2 ^ 20, function()
-        return result ~= nil
+        return finished
     end)
-    ---@cast result -nil
-    return list.unpack(result)
+    return wrapper.await()
 end
 
 return M
