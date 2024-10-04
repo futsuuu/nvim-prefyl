@@ -2,8 +2,6 @@
 local M = {}
 package.loaded[...] = M
 
-local async = require("prefyl.lib.async")
-
 local list = require("prefyl.lib.list")
 local test = require("prefyl.lib.test")
 
@@ -13,7 +11,7 @@ local test = require("prefyl.lib.test")
 ---@return prefyl.async.Future<A?, B?, C?, D?, E?, F?, G?>
 ---@return T?, U?, V?, W?, X?, Y?, Z?
 function M.new(executor)
-    local co = nil ---@type thread?
+    local threads = {} ---@type thread[]
     local result = nil ---@type table?
 
     local finished = false
@@ -22,16 +20,19 @@ function M.new(executor)
             return
         end
         finished = true
-        if co then
-            assert(coroutine.resume(co, ...))
-        else
+        if threads[1] == nil then
             result = list.pack(...)
+        else
+            for _, co in ipairs(threads) do
+                assert(coroutine.resume(co, ...))
+            end
         end
     end
 
     local function await()
         if not result then
-            co = assert(coroutine.running(), "cannot yield from the main thread")
+            local co = assert(coroutine.running(), "cannot yield from the main thread")
+            table.insert(threads, co)
             result = list.pack(coroutine.yield())
         end
         return list.unpack(result)
@@ -50,12 +51,18 @@ test.group("new", function()
         test.assert_eq({ 1, 2 }, { future.await() })
     end)
 
-    test.test("yield", { fail = true }, function()
-        M.new(vim.schedule).await()
-    end)
-
-    test.test("resume", function()
-        async.block_on(M.new(vim.schedule))
+    test.test("multiple await", function()
+        local future = M.new(vim.schedule)
+        local a = 0
+        for _ = 1, 1000 do
+            assert(coroutine.resume(coroutine.create(function()
+                future.await()
+                a = a + 1
+            end)))
+        end
+        test.assert_eq(0, a)
+        vim.wait(100)
+        test.assert_eq(1000, a)
     end)
 end)
 
