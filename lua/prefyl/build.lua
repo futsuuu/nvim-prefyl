@@ -45,19 +45,24 @@ function M.build(strip)
 
         local scope = Chunk.scope()
 
-        local plugins = {} ---@type table<string, prefyl.build.Plugin>
+        local plugins = {} ---@type table<string, prefyl.async.Future<prefyl.build.Plugin>>
         for name, spec in pairs(config.plugins) do
             if not vim.list_contains(default_runtimepaths, spec.dir) then
-                plugins[name] = Plugin.new(spec).await()
+                plugins[name] = Plugin.new(spec)
             end
         end
 
+        local initializers = {} ---@type prefyl.async.Future<prefyl.build.Chunk>[]
         for _, plugin in pairs(plugins) do
-            scope:push(plugin:initialize(out).await())
+            local initializer = async.async(function()
+                return plugin.await():initialize(out).await()
+            end)
+            table.insert(initializers, initializer)
         end
+        scope:extend(async.join_all(initializers).await())
 
         for name, plugin in pairs(plugins) do
-            if not plugin:is_lazy() then
+            if not plugin.await():is_lazy() then
                 scope:push(runtime.load_plugin(name))
             end
         end

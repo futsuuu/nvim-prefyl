@@ -36,6 +36,8 @@ end
 ---@param str string
 ---@return prefyl.async.Future<prefyl.Path>
 function M:write(str)
+    self.counter = self.counter + 1
+    local counter = self.counter
     return async.async(function()
         local s ---@type string
         if self.strip then
@@ -43,11 +45,10 @@ function M:write(str)
         else
             s = "-- vim:ft=lua:readonly:nowrap\n" .. str:gsub("\\\n", "\\n")
         end
-        local path = self.dir / ("%x"):format(self.counter)
+        local path = self.dir / ("%x"):format(counter)
         assert(path:write(s).await())
 
         self.last = path
-        self.counter = self.counter + 1
         return path
     end)
 end

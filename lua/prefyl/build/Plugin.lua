@@ -24,10 +24,12 @@ function M.new(spec)
         ---@type prefyl.build.Plugin
         local self = {
             spec = spec,
-            rtdirs = {
-                RuntimeDir.new(spec.dir).await(),
-                RuntimeDir.new(spec.dir / "after").await(),
-            },
+            rtdirs = async
+                .join_all({
+                    RuntimeDir.new(spec.dir),
+                    RuntimeDir.new(spec.dir / "after"),
+                })
+                .await(),
         }
         return setmetatable(self, M)
     end)
@@ -41,12 +43,7 @@ function M.new_std(spec, paths)
         ---@type prefyl.build.Plugin
         local self = {
             spec = spec,
-            rtdirs = vim.iter(paths)
-                :map(RuntimeDir.new)
-                :map(function(future)
-                    return (future.await())
-                end)
-                :totable(),
+            rtdirs = async.join_all(vim.iter(paths):map(RuntimeDir.new):totable()).await(),
         }
         return setmetatable(self, M)
     end)
