@@ -4,8 +4,9 @@ package.loaded[...] = M
 local Future = require("prefyl.lib.async.Future")
 
 M.Future = Future
+M.uv = require("prefyl.lib.async.uv")
+M.vim = require("prefyl.lib.async.vim")
 
----@nodiscard
 ---@generic T, U, V, W, X, Y, Z
 ---@param func fun(): T?, U?, V?, W?, X?, Y?, Z?
 ---@return prefyl.async.Future<T?, U?, V?, W?, X?, Y?, Z?>

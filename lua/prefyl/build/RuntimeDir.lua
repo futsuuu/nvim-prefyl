@@ -1,4 +1,5 @@
 local Path = require("prefyl.lib.Path")
+local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
 local dump = require("prefyl.build.dump")
@@ -94,34 +95,37 @@ end)
 local M = {}
 
 ---@param dir prefyl.Path
----@return prefyl.build.RuntimeDir
+---@return prefyl.async.Future<prefyl.build.RuntimeDir>
 function M.new(dir)
-    local files = {} ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
-    for kind, ps in pairs(patterns) do
-        files[kind] = vim.iter(ps)
-            :map(function(p)
-                return dir:glob(p)
-            end)
-            :flatten()
-            :totable()
-    end
+    return async.async(function()
+        local files = {} ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
+        for kind, ps in pairs(patterns) do
+            files[kind] = vim.iter(ps)
+                :map(function(p)
+                    async.vim.schedule().await()
+                    return dir:glob(p)
+                end)
+                :flatten()
+                :totable()
+        end
 
-    ---@type prefyl.build.RuntimeDir
-    return {
-        dir = dir,
-        plugin_files = files[DirKind.PLUGIN],
-        ftdetect_files = files[DirKind.FTDETECT],
-        luamodules = vim.iter(files[DirKind.LUA])
-            :fold({}, function(acc, path) ---@param path prefyl.Path
-                acc[get_luamodule(dir, path)] = dump(path)
-                return acc
-            end),
-        colorschemes = vim.iter(files[DirKind.COLORS])
-            :map(function(path)
-                return get_colorscheme(dir, path)
-            end)
-            :totable(),
-    }
+        ---@type prefyl.build.RuntimeDir
+        return {
+            dir = dir,
+            plugin_files = files[DirKind.PLUGIN],
+            ftdetect_files = files[DirKind.FTDETECT],
+            luamodules = vim.iter(files[DirKind.LUA])
+                :fold({}, function(acc, path) ---@param path prefyl.Path
+                    acc[get_luamodule(dir, path)] = dump(path).await()
+                    return acc
+                end),
+            colorschemes = vim.iter(files[DirKind.COLORS])
+                :map(function(path)
+                    return get_colorscheme(dir, path)
+                end)
+                :totable(),
+        }
+    end)
 end
 
 return M

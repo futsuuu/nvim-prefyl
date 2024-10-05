@@ -1,4 +1,5 @@
 local Path = require("prefyl.lib.Path")
+local async = require("prefyl.lib.async")
 
 ---@class prefyl.build.Out
 ---@field private strip boolean
@@ -33,20 +34,22 @@ function M:finish()
 end
 
 ---@param str string
----@return prefyl.Path
+---@return prefyl.async.Future<prefyl.Path>
 function M:write(str)
-    local s ---@type string
-    if self.strip then
-        s = string.dump(assert(loadstring(str)), true)
-    else
-        s = "-- vim:ft=lua:readonly:nowrap\n" .. str:gsub("\\\n", "\\n")
-    end
-    local path = self.dir / ("%x"):format(self.counter)
-    assert(path:write(s))
+    return async.async(function()
+        local s ---@type string
+        if self.strip then
+            s = string.dump(assert(loadstring(str)), true)
+        else
+            s = "-- vim:ft=lua:readonly:nowrap\n" .. str:gsub("\\\n", "\\n")
+        end
+        local path = self.dir / ("%x"):format(self.counter)
+        assert(path:write(s).await())
 
-    self.last = path
-    self.counter = self.counter + 1
-    return path
+        self.last = path
+        self.counter = self.counter + 1
+        return path
+    end)
 end
 
 return M

@@ -1,3 +1,5 @@
+local async = require("prefyl.lib.async")
+
 local Chunk = require("prefyl.build.Chunk")
 local Config = require("prefyl.build.Config")
 local RuntimeDir = require("prefyl.build.RuntimeDir")
@@ -16,102 +18,113 @@ local rt_configs = Chunk.new('local plugins = require("prefyl.runtime.config").p
 })
 
 ---@param spec prefyl.build.Config.PluginSpec
----@return prefyl.build.Plugin
+---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new(spec)
-    ---@type prefyl.build.Plugin
-    local self = {
-        spec = spec,
-        rtdirs = {
-            RuntimeDir.new(spec.dir),
-            RuntimeDir.new(spec.dir / "after"),
-        },
-    }
-    return setmetatable(self, M)
+    return async.async(function()
+        ---@type prefyl.build.Plugin
+        local self = {
+            spec = spec,
+            rtdirs = {
+                RuntimeDir.new(spec.dir).await(),
+                RuntimeDir.new(spec.dir / "after").await(),
+            },
+        }
+        return setmetatable(self, M)
+    end)
 end
 
 ---@param spec prefyl.build.Config.StdSpec
 ---@param paths prefyl.Path[]
----@return prefyl.build.Plugin
+---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new_std(spec, paths)
-    ---@type prefyl.build.Plugin
-    local self = {
-        spec = spec,
-        rtdirs = vim.iter(paths):map(RuntimeDir.new):totable(),
-    }
-    return setmetatable(self, M)
+    return async.async(function()
+        ---@type prefyl.build.Plugin
+        local self = {
+            spec = spec,
+            rtdirs = vim.iter(paths)
+                :map(RuntimeDir.new)
+                :map(function(future)
+                    return (future.await())
+                end)
+                :totable(),
+        }
+        return setmetatable(self, M)
+    end)
 end
 
 ---@nodiscard
 ---@param out prefyl.build.Out
----@return prefyl.build.Chunk
+---@return prefyl.async.Future<prefyl.build.Chunk>
 function M:initialize(out)
     local spec = self.spec
 
-    if not self:is_enabled() then
-        ---@cast spec prefyl.build.Config.PluginSpec
-        return Chunk.new(("-- %q is disabled\n"):format(spec.name))
-    end
-
-    local scope = Chunk.scope()
-
-    local loader = Chunk.scope()
-        :extend(self:load_dependencies(false))
-        :push(self:set_rtp())
-        :extend(self:set_luachunks())
-        :push(self:call_rt_hook("config_pre"))
-        :extend(self:load_rtdirs(false, self.spec.disabled_plugins))
-    local after_loader = Chunk.scope()
-        :extend(self:load_rtdirs(true, self.spec.disabled_plugins))
-        :extend(self:load_dependencies(true))
-        :push(self:call_rt_hook("config"))
-
-    if self:is_std() then
-        ---@cast spec prefyl.build.Config.StdSpec
-        scope:extend(loader):extend(after_loader)
-    else
-        ---@cast spec prefyl.build.Config.PluginSpec
-        if spec.lazy then
-            local loader_file = out:write(loader:to_chunk():tostring())
-            local after_loader_file = out:write(after_loader:to_chunk():tostring())
-            scope
-                :push(runtime.prefetch_file(loader_file))
-                :push(runtime.prefetch_file(after_loader_file))
-                :push(
-                    runtime.set_plugin_loader(
-                        spec.name,
-                        runtime.do_file_sync(loader_file),
-                        runtime.do_file_sync(after_loader_file)
-                    )
-                )
-        else
-            scope:push(
-                runtime.set_plugin_loader(spec.name, loader:to_chunk(), after_loader:to_chunk())
-            )
+    return async.async(function()
+        if not self:is_enabled() then
+            ---@cast spec prefyl.build.Config.PluginSpec
+            return Chunk.new(("-- %q is disabled\n"):format(spec.name))
         end
-    end
 
-    scope:extend(self:setup_lazy_handlers())
+        local scope = Chunk.scope()
 
-    scope:push(self:call_rt_hook("init"))
+        local loader = Chunk.scope()
+            :extend(self:load_dependencies(false))
+            :push(self:set_rtp())
+            :extend(self:set_luachunks())
+            :push(self:call_rt_hook("config_pre"))
+            :extend(self:load_rtdirs(false, self.spec.disabled_plugins))
+        local after_loader = Chunk.scope()
+            :extend(self:load_rtdirs(true, self.spec.disabled_plugins))
+            :extend(self:load_dependencies(true))
+            :push(self:call_rt_hook("config"))
 
-    if self:is_std() then
-        return scope:to_chunk()
-    end
-    ---@cast spec prefyl.build.Config.PluginSpec
+        if self:is_std() then
+            ---@cast spec prefyl.build.Config.StdSpec
+            scope:extend(loader):extend(after_loader)
+        else
+            ---@cast spec prefyl.build.Config.PluginSpec
+            if spec.lazy then
+                local loader_file = out:write(loader:to_chunk():tostring()).await()
+                local after_loader_file = out:write(after_loader:to_chunk():tostring()).await()
+                scope
+                    :push(runtime.prefetch_file(loader_file))
+                    :push(runtime.prefetch_file(after_loader_file))
+                    :push(
+                        runtime.set_plugin_loader(
+                            spec.name,
+                            runtime.do_file_sync(loader_file),
+                            runtime.do_file_sync(after_loader_file)
+                        )
+                    )
+            else
+                scope:push(
+                    runtime.set_plugin_loader(spec.name, loader:to_chunk(), after_loader:to_chunk())
+                )
+            end
+        end
 
-    local config = assert(self:rt_config())
-    return Chunk.if_(
-        vim.iter(spec.deps.recursive)
-            :flatten()
-            :map(function(s)
-                return ("(%s[%q] or {})"):format(rt_configs:get_output(), s)
-            end)
-            :fold(("%s.cond ~= false"):format(config:get_output()), function(acc, spec)
-                return ("%s and %s.cond ~= false"):format(acc, spec)
-            end),
-        scope:to_chunk(),
-        { inputs = { rt_configs, config } }
-    )
+        scope:extend(self:setup_lazy_handlers())
+
+        scope:push(self:call_rt_hook("init"))
+
+        if self:is_std() then
+            return scope:to_chunk()
+        end
+        ---@cast spec prefyl.build.Config.PluginSpec
+
+        local config = assert(self:rt_config())
+        return Chunk.if_(
+            vim.iter(spec.deps.recursive)
+                :flatten()
+                :map(function(s)
+                    return ("(%s[%q] or {})"):format(rt_configs:get_output(), s)
+                end)
+                :fold(("%s.cond ~= false"):format(config:get_output()), function(acc, spec)
+                    return ("%s and %s.cond ~= false"):format(acc, spec)
+                end),
+            scope:to_chunk(),
+            { inputs = { rt_configs, config } }
+        )
+    end)
 end
 
 ---@return boolean

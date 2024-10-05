@@ -1,3 +1,4 @@
+local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.Path
@@ -373,59 +374,23 @@ function M:read(callback)
     end
 end
 
----@param path string
----@param data string
----@param callback fun(bytes: integer?, err: string?)
-local function write(path, data, callback)
-    vim.uv.fs_open(path, "w", 420, function(err, fd) -- 0644
+---@return prefyl.async.Future<integer?, string?>: bytes?, err?
+function M:write(data)
+    return async.async(function()
+        local fd, err = async.uv.fs_open(self.path, "w", 420).await() -- 0o644
         if not fd then
-            callback(nil, err)
-            return
+            return nil, err
         end
-        vim.uv.fs_write(fd, data, 0, function(err, bytes)
-            if not bytes then
-                callback(nil, err)
-                return
-            end
-            vim.uv.fs_close(fd, function(err, success)
-                if not success then
-                    callback(nil, err)
-                    return
-                end
-                callback(bytes)
-            end)
-        end)
+        local bytes, err = async.uv.fs_write(fd, data, 0).await()
+        if not bytes then
+            return nil, err
+        end
+        local success, err = async.uv.fs_close(fd).await()
+        if not success then
+            return nil, err
+        end
+        return bytes
     end)
-end
-
----@param path string
----@param data string
----@return integer? bytes
----@return string? error
-local function write_sync(path, data)
-    local fd, err = vim.uv.fs_open(path, "w", 420) -- 0644
-    if not fd then
-        return nil, err
-    end
-    local bytes, err = vim.uv.fs_write(fd, data, 0)
-    if not bytes then
-        return nil, err
-    end
-    local success, err = vim.uv.fs_close(fd)
-    if not success then
-        return nil, err
-    end
-    return bytes
-end
-
----@overload fun(self: prefyl.Path, data: string, callback: fun(bytes: integer?, err: string?))
----@overload fun(self: prefyl.Path, data: string): bytes: integer?, error: string?
-function M:write(data, callback)
-    if callback then
-        write(self.path, data, callback)
-    else
-        return write_sync(self.path, data)
-    end
 end
 
 ---@overload fun(self: prefyl.Path, new: prefyl.Path, callback: fun(success: boolean?, err: string?))
