@@ -5,6 +5,8 @@ package.loaded[...] = M
 local list = require("prefyl.lib.list")
 local test = require("prefyl.lib.test")
 
+local async = require("prefyl.lib.async")
+
 ---@nodiscard
 ---@generic A, B, C, D, E, F, G, T, U, V, W, X, Y, Z
 ---@param executor fun(finish: fun(a: A?, b: B?, c: C?, d: D?, e: E?, f: F?, g: G?)): T?, U?, V?, W?, X?, Y?, Z?
@@ -31,8 +33,7 @@ function M.new(executor)
 
     local function await()
         if not result then
-            local co = assert(coroutine.running(), "cannot yield from the main thread")
-            table.insert(threads, co)
+            table.insert(threads, assert(async.current_thread()))
             result = list.pack(coroutine.yield())
         end
         return list.unpack(result)
@@ -55,10 +56,10 @@ test.group("new", function()
         local future = M.new(vim.schedule)
         local a = 0
         for _ = 1, 1000 do
-            assert(coroutine.resume(coroutine.create(function()
+            async.async(function()
                 future.await()
                 a = a + 1
-            end)))
+            end)
         end
         test.assert_eq(0, a)
         vim.wait(100)

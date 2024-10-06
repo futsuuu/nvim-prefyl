@@ -10,15 +10,34 @@ M.time = require("prefyl.lib.async.time")
 M.uv = require("prefyl.lib.async.uv")
 M.vim = require("prefyl.lib.async.vim")
 
+local threads = {} ---@type table<thread, true>
+
 ---@generic T, U, V, W, X, Y, Z
 ---@param func fun(): T?, U?, V?, W?, X?, Y?, Z?
 ---@return prefyl.async.Future<T?, U?, V?, W?, X?, Y?, Z?>
 function M.async(func)
     return Future.new(function(finish)
-        assert(coroutine.resume(coroutine.create(function()
+        local co
+        co = coroutine.create(function()
             finish(func())
-        end)))
+            threads[co] = nil
+        end)
+        threads[co] = true
+        assert(coroutine.resume(co))
     end)
+end
+
+---@return thread?
+---@return string? err
+function M.current_thread()
+    local running = coroutine.running()
+    if not running then
+        return nil, "currently running on the main thread"
+    elseif not threads[running] then
+        return nil, "currently running on an unknown thread"
+    else
+        return running
+    end
 end
 
 ---@generic T, U, V, W, X, Y, Z
