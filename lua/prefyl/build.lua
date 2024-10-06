@@ -17,12 +17,12 @@ local M = {}
 ---@return prefyl.async.Future<prefyl.Path>
 function M.build(strip)
     return async.async(function()
-        local default_runtimepaths = nvim.default_runtimepaths()
+        local default_runtimepaths = nvim.default_runtimepaths().await()
         local config = Config.load(default_runtimepaths)
 
         installer.install(config)
 
-        local out = Out.new(strip)
+        local out = Out.new(strip).await()
 
         local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
         local s = str.dedent([[
@@ -70,7 +70,7 @@ function M.build(strip)
         s = s .. scope:to_chunk():tostring()
 
         out:write(s).await()
-        return out:finish()
+        return out:finish().await()
     end)
 end
 

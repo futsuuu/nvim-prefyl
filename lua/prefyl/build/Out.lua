@@ -2,35 +2,39 @@ local Path = require("prefyl.lib.Path")
 local async = require("prefyl.lib.async")
 
 ---@class prefyl.build.Out
----@field private strip boolean
----@field private dir prefyl.Path
----@field private counter integer
----@field private last prefyl.Path?
+---@field package strip boolean
+---@field package dir prefyl.Path
+---@field package counter integer
+---@field package last prefyl.Path?
 local M = {}
 ---@private
 M.__index = M
 
 ---@param strip boolean
----@return prefyl.build.Out
+---@return prefyl.async.Future<prefyl.build.Out>
 function M.new(strip)
-    ---@type prefyl.build.Out
-    local self = {
-        strip = strip,
-        dir = (Path.stdpath.state / "prefyl" / (strip and "s" or "d")):ensure_dir(),
-        counter = 0,
-        last = nil,
-    }
-    self.dir:ensure_removed():ensure_dir()
-    return setmetatable(self, M)
+    return async.async(function()
+        ---@type prefyl.build.Out
+        local self = {
+            strip = strip,
+            dir = (Path.stdpath.state / "prefyl" / (strip and "s" or "d")):ensure_dir(),
+            counter = 0,
+            last = nil,
+        }
+        self.dir:ensure_removed().await():ensure_dir()
+        return setmetatable(self, M)
+    end)
 end
 
----@return prefyl.Path
+---@return prefyl.async.Future<prefyl.Path>
 function M:finish()
-    local last = assert(self.last)
-    local link = Path.stdpath.state / "prefyl" / "startup"
-    link:ensure_removed()
-    last:link(link)
-    return link
+    return async.async(function()
+        local last = assert(self.last)
+        local link = Path.stdpath.state / "prefyl" / "startup"
+        link:ensure_removed().await()
+        assert(last:link(link).await())
+        return link
+    end)
 end
 
 ---@param str string

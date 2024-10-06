@@ -63,14 +63,20 @@ function M:initialize(out)
 
         local scope = Chunk.scope()
 
+        local loader, after_loader = unpack(async
+            .join_all({
+                self:load_rtdirs(false, self.spec.disabled_plugins),
+                self:load_rtdirs(true, self.spec.disabled_plugins),
+            })
+            .await())
         local loader = Chunk.scope()
             :extend(self:load_dependencies(false))
             :push(self:set_rtp())
             :extend(self:set_luachunks())
             :push(self:call_rt_hook("config_pre"))
-            :extend(self:load_rtdirs(false, self.spec.disabled_plugins))
+            :extend(loader)
         local after_loader = Chunk.scope()
-            :extend(self:load_rtdirs(true, self.spec.disabled_plugins))
+            :extend(after_loader)
             :extend(self:load_dependencies(true))
             :push(self:call_rt_hook("config"))
 
@@ -160,10 +166,10 @@ end
 ---@nodiscard
 ---@param after boolean
 ---@param disabled_plugins prefyl.Path[]
----@return prefyl.build.Chunk.Scope
+---@return prefyl.async.Future<prefyl.build.Chunk.Scope>
 function M:load_rtdirs(after, disabled_plugins)
-    return Chunk.scope()
-        :extend(vim.iter(self.rtdirs)
+    return async.async(function()
+        local plugin_files = vim.iter(self.rtdirs)
             :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return after == rtdir.dir:ends_with("after")
             end)
@@ -175,23 +181,28 @@ function M:load_rtdirs(after, disabled_plugins)
                 if not vim.list_contains(disabled_plugins, path) then
                     return nvim.source(path)
                 else
-                    return Chunk.new(("-- %q is disabled\n"):format(path))
+                    return async.async(function()
+                        return Chunk.new(("-- %q is disabled\n"):format(path))
+                    end)
                 end
             end)
-            :totable())
-        :extend(nvim.augroup(
-            "filetypedetect",
-            vim.iter(self.rtdirs)
-                :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                    return after == rtdir.dir:ends_with("after")
-                end)
-                :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
-                    return rtdir.ftdetect_files
-                end)
-                :flatten()
-                :map(nvim.source)
-                :totable()
-        ))
+            :totable()
+
+        local ftdetect_files = vim.iter(self.rtdirs)
+            :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
+                return after == rtdir.dir:ends_with("after")
+            end)
+            :map(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
+                return rtdir.ftdetect_files
+            end)
+            :flatten()
+            :map(nvim.source)
+            :totable()
+
+        return Chunk.scope()
+            :extend(async.join_all(plugin_files).await())
+            :extend(nvim.augroup("filetypedetect", async.join_all(ftdetect_files).await()))
+    end)
 end
 
 ---@nodiscard

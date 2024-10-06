@@ -278,6 +278,7 @@ end
 
 ---@return self
 function M:ensure_dir()
+    async.vim.ensure_scheduled()
     vim.fn.mkdir(self.path, "p")
     return self
 end
@@ -289,89 +290,56 @@ function M:ensure_parent_dir()
 end
 
 ---@protected
----@return uv.aliases.fs_stat_table?
+---@return prefyl.async.Future<uv.aliases.fs_stat_table?>
 function M:stat()
-    return vim.uv.fs_stat(self.path)
+    return async.async(function()
+        return (async.uv.fs_stat(self.path).await())
+    end)
 end
 
----@return boolean
+---@return prefyl.async.Future<boolean>
 function M:exists()
-    return self:stat() ~= nil
+    return async.async(function()
+        return self:stat().await() ~= nil
+    end)
 end
 
----@return boolean
+---@return prefyl.async.Future<boolean>
 function M:is_dir()
-    local stat = self:stat()
-    return stat and stat.type == "directory" or false
+    return async.async(function()
+        local stat = self:stat().await()
+        return stat and stat.type == "directory" or false
+    end)
 end
 
 ---@param expr string
 ---@return prefyl.Path[]
 function M:glob(expr)
+    async.vim.ensure_scheduled()
     return vim.iter(vim.fn.glob(self.path .. "/" .. expr, false, true)):map(M.new):totable()
 end
 
----@param path string
----@param callback fun(data: string?, err: string?)
-local function read(path, callback)
-    vim.uv.fs_open(path, "r", 292, function(err, fd) -- 0444
+---@return prefyl.async.Future<string?, string?>: data?, err?
+function M:read()
+    return async.async(function()
+        local fd, err = async.uv.fs_open(self.path, "r", 292).await() -- 0o444
         if not fd then
-            callback(nil, err)
-            return
+            return nil, err
         end
-        vim.uv.fs_fstat(fd, function(err, stat)
-            if not stat then
-                callback(nil, err)
-                return
-            end
-            vim.uv.fs_read(fd, stat.size, 0, function(err, data)
-                if not data then
-                    callback(nil, err)
-                    return
-                end
-                vim.uv.fs_close(fd, function(err, success)
-                    if not success then
-                        callback(nil, err)
-                        return
-                    end
-                    callback(data)
-                end)
-            end)
-        end)
+        local stat, err = async.uv.fs_fstat(fd).await()
+        if not stat then
+            return nil, err
+        end
+        local data, err = async.uv.fs_read(fd, stat.size).await()
+        if not data then
+            return nil, err
+        end
+        local success, err = async.uv.fs_close(fd).await()
+        if not success then
+            return nil, err
+        end
+        return data
     end)
-end
-
----@param path string
----@return string? data
----@return string? error
-local function read_sync(path)
-    local fd, err = vim.uv.fs_open(path, "r", 292) -- 0444
-    if not fd then
-        return nil, err
-    end
-    local stat, err = vim.uv.fs_fstat(fd)
-    if not stat then
-        return nil, err
-    end
-    local data, err = vim.uv.fs_read(fd, stat.size)
-    if not data then
-        return nil, err
-    end
-    local success, err = vim.uv.fs_close(fd)
-    if not success then
-        return nil, err
-    end
-    return data
-end
-
----@overload fun(self: prefyl.Path, callback: fun(data: string?, err: string?))
----@overload fun(self: prefyl.Path): data: string?, error: string?
-function M:read(callback)
-    if callback then
-        read(self.path, callback)
-    else
-        return read_sync(self.path)
-    end
 end
 
 ---@return prefyl.async.Future<integer?, string?>: bytes?, err?
@@ -393,51 +361,40 @@ function M:write(data)
     end)
 end
 
----@overload fun(self: prefyl.Path, new: prefyl.Path, callback: fun(success: boolean?, err: string?))
----@overload fun(self: prefyl.Path, new: prefyl.Path): success: boolean?, error: string?
-function M:link(new, callback)
-    ---@param err string?
-    ---@param success boolean?
-    local callback = callback and function(err, success)
-        callback(success, err)
-    end
-
-    local hardlink = false
-    local symlink_flags = nil ---@type uv.aliases.fs_symlink_flags?
-    if IS_WINDOWS then
-        hardlink = not self:is_dir()
-        symlink_flags = { junction = true }
-    end
-
-    if callback then
-        if hardlink then
-            vim.uv.fs_link(self.path, new.path, callback)
-        else
-            vim.uv.fs_symlink(self.path, new.path, symlink_flags, callback)
+---@param new prefyl.Path
+---@return prefyl.async.Future<boolean?, string?>: success?, err?
+function M:link(new)
+    return async.async(function()
+        local hardlink = false
+        local symlink_flags = {} ---@type uv.aliases.fs_symlink_flags
+        if IS_WINDOWS then
+            hardlink = not self:is_dir().await()
+            symlink_flags.junction = true
         end
-    else
-        local success, err
+
         if hardlink then
-            success, err = vim.uv.fs_link(self.path, new.path)
+            return async.uv.fs_link(self.path, new.path).await()
         else
-            success, err = vim.uv.fs_symlink(self.path, new.path, symlink_flags)
+            return async.uv.fs_symlink(self.path, new.path, symlink_flags).await()
         end
-        return success, err
-    end
+    end)
 end
 
----@return self
+---@return prefyl.async.Future<self>
 function M:ensure_removed()
-    if not self:exists() then
+    return async.async(function()
+        if not self:exists().await() then
+            return self
+        end
+        if self:is_dir().await() then
+            async.vim.schedule().await()
+            local rc = vim.fn.delete(self.path, "rf")
+            assert(rc == 0 or rc == false, "failed to remove a directory: " .. self.path)
+        else
+            assert(os.remove(self.path))
+        end
         return self
-    end
-    if self:is_dir() then
-        local rc = vim.fn.delete(self.path, "rf")
-        assert(rc == 0 or rc == false, "failed to remove a directory: " .. self.path)
-    else
-        assert(os.remove(self.path))
-    end
-    return self
+    end)
 end
 
 ---@class prefyl.Path.Timestamp
@@ -486,28 +443,36 @@ test.test("timestamp", function()
     test.assert_eq(timestamp({ sec = 0, nsec = 1 }), timestamp({ sec = 0, nsec = 1 }))
 end)
 
----@return prefyl.Path.Timestamp
+---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:birthtime()
-    local s = self:stat()
-    return timestamp(s and s.birthtime)
+    return async.async(function()
+        local s = self:stat().await()
+        return timestamp(s and s.birthtime)
+    end)
 end
 
----@return prefyl.Path.Timestamp
+---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:ctime()
-    local s = self:stat()
-    return timestamp(s and s.ctime)
+    return async.async(function()
+        local s = self:stat().await()
+        return timestamp(s and s.ctime)
+    end)
 end
 
----@return prefyl.Path.Timestamp
+---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:mtime()
-    local s = self:stat()
-    return timestamp(s and s.mtime)
+    return async.async(function()
+        local s = self:stat().await()
+        return timestamp(s and s.mtime)
+    end)
 end
 
----@return prefyl.Path.Timestamp
+---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:atime()
-    local s = self:stat()
-    return timestamp(s and s.atime)
+    return async.async(function()
+        local s = self:stat().await()
+        return timestamp(s and s.atime)
+    end)
 end
 
 ---@class prefyl.Path.StdPath
@@ -521,6 +486,7 @@ end
 ---@field data_dirs prefyl.Path[]
 M.stdpath = setmetatable({}, {
     __index = function(t, key)
+        async.vim.ensure_scheduled()
         local path = vim.fn.stdpath(key)
         local result
         if type(path) == "string" then

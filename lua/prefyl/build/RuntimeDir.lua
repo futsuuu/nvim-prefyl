@@ -102,7 +102,6 @@ function M.new(dir)
         for kind, ps in pairs(patterns) do
             files[kind] = vim.iter(ps)
                 :map(function(p)
-                    async.vim.schedule().await()
                     return dir:glob(p)
                 end)
                 :flatten()
