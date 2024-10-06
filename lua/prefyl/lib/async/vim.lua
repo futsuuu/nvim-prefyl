@@ -1,4 +1,5 @@
 local M = {}
+package.loaded[...] = M
 
 local Future = require("prefyl.lib.async.Future")
 

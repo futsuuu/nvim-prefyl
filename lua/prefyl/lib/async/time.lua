@@ -1,4 +1,5 @@
 local M = {}
+package.loaded[...] = M
 
 local uv = require("luv")
 
