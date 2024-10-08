@@ -17,11 +17,12 @@ function M.new(strip)
         ---@type prefyl.build.Out
         local self = {
             strip = strip,
-            dir = (Path.stdpath.state / "prefyl" / (strip and "s" or "d")):ensure_dir(),
+            dir = Path.stdpath.state / "prefyl" / (strip and "s" or "d"),
             counter = 0,
             last = nil,
         }
-        self.dir:ensure_removed().await():ensure_dir()
+        assert(self.dir:remove_dir_all().await())
+        assert(self.dir:create_dir_all().await())
         return setmetatable(self, M)
     end)
 end
@@ -31,7 +32,7 @@ function M:finish()
     return async.async(function()
         local last = assert(self.last)
         local link = Path.stdpath.state / "prefyl" / "startup"
-        link:ensure_removed().await()
+        assert(link:remove_link().await())
         assert(last:link(link).await())
         return link
     end)

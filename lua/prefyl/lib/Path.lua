@@ -1,4 +1,6 @@
 local async = require("prefyl.lib.async")
+local channel = require("prefyl.lib.channel")
+local list = require("prefyl.lib.list")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.Path
@@ -276,17 +278,26 @@ function M:encode(rfc)
     return vim.uri_encode(self.path, rfc)
 end
 
----@return self
-function M:ensure_dir()
-    async.vim.ensure_scheduled()
-    vim.fn.mkdir(self.path, "p")
-    return self
+---@return prefyl.async.Future<boolean?, string?>
+function M:create_dir()
+    return (async.uv.fs_mkdir(self.path, 493)) -- 0o755
 end
 
----@return self
-function M:ensure_parent_dir()
-    (self / ".."):ensure_dir()
-    return self
+---@return prefyl.async.Future<boolean?, string?>
+function M:create_dir_all()
+    return async.async(function()
+        if self:is_dir().await() then
+            return true
+        end
+        local parent = self / ".."
+        if not parent:exists() then
+            local success, err = parent:create_dir_all().await()
+            if not success then
+                return nil, err
+            end
+        end
+        return self:create_dir().await()
+    end)
 end
 
 ---@protected
@@ -342,6 +353,43 @@ function M:read()
     end)
 end
 
+---@return prefyl.async.Future<prefyl.channel.Receiver<prefyl.async.uv.ReadDirEntry>?, string?>
+function M:read_dir()
+    return async.async(function()
+        local tx, rx = channel.new()
+
+        local dir, err = async.uv.fs_opendir(self.path).await()
+        if not dir then
+            return nil, err
+        end
+
+        async.async(function()
+            channel.closed(rx).await()
+            assert(dir:closedir().await())
+        end)
+
+        while true do
+            local entries, _err = dir:readdir().await()
+            if not entries then
+                channel.close(tx)
+                break
+            end
+            local br = false
+            for _, entry in ipairs(entries) do
+                br = not tx(entry)
+                if br then
+                    break
+                end
+            end
+            if br then
+                break
+            end
+        end
+
+        return rx
+    end)
+end
+
 ---@return prefyl.async.Future<integer?, string?>: bytes?, err?
 function M:write(data)
     return async.async(function()
@@ -380,20 +428,68 @@ function M:link(new)
     end)
 end
 
----@return prefyl.async.Future<self>
-function M:ensure_removed()
+---@return boolean? success
+---@return string? err
+function M:remove_file()
+    return os.remove(self.path)
+end
+
+---@return prefyl.async.Future<boolean?, string?>
+function M:remove_link()
+    return async.async(function()
+        if self:stat().await().type == "link" then
+            return async.uv.fs_unlink(self.path).await()
+        else
+            -- for hardlink
+            return self:remove_file()
+        end
+    end)
+end
+
+---@return prefyl.async.Future<boolean?, string?>
+function M:remove_dir()
+    return (async.uv.fs_rmdir(self.path))
+end
+
+---@return prefyl.async.Future<boolean?, string?>
+function M:remove_dir_all()
     return async.async(function()
         if not self:exists().await() then
-            return self
+            return true
         end
-        if self:is_dir().await() then
-            async.vim.schedule().await()
-            local rc = vim.fn.delete(self.path, "rf")
-            assert(rc == 0 or rc == false, "failed to remove a directory: " .. self.path)
-        else
-            assert(os.remove(self.path))
+
+        local reader, err = self:read_dir().await()
+        if not reader then
+            return nil, err
         end
-        return self
+
+        local futures = {}
+        while true do
+            local entry = reader().await() ---@type prefyl.async.uv.ReadDirEntry?
+            if not entry then
+                break
+            end
+            local path = self / entry.name
+            local future = async.async(function()
+                if entry.type == "directory" then
+                    return list.pack(path:remove_dir_all().await())
+                elseif entry.type == "link" then
+                    return list.pack(path:remove_link().await())
+                else
+                    return list.pack(path:remove_file())
+                end
+            end)
+            table.insert(futures, future)
+        end
+
+        for _, result in ipairs(async.join_all(futures).await()) do
+            local success, err = list.unpack(result)
+            if not success then
+                return nil, err
+            end
+        end
+
+        return self:remove_dir().await()
     end)
 end
 

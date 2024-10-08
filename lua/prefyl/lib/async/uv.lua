@@ -63,6 +63,16 @@ function M.fs_link(path, new_path)
     end)
 end
 
+---@param path string
+---@param mode integer
+---@return prefyl.async.Future<boolean?, string?>: success?, err?
+---@return uv_fs_t
+function M.fs_mkdir(path, mode)
+    return Future.new(function(finish)
+        return uv.fs_mkdir(path, mode, swap(finish))
+    end)
+end
+
 ---@nodiscard
 ---@param path string
 ---@param flags integer | uv.aliases.fs_access_flags
