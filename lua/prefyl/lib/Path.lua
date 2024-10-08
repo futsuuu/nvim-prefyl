@@ -437,12 +437,12 @@ end
 ---@return prefyl.async.Future<boolean?, string?>
 function M:remove_link()
     return async.async(function()
-        if self:stat().await().type == "link" then
-            return async.uv.fs_unlink(self.path).await()
-        else
-            -- for hardlink
+        local stat = self:stat().await()
+        -- for hardlink
+        if stat and stat.type == "file" then
             return self:remove_file()
         end
+        return async.uv.fs_unlink(self.path).await()
     end)
 end
 

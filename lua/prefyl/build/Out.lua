@@ -32,7 +32,9 @@ function M:finish()
     return async.async(function()
         local last = assert(self.last)
         local link = Path.stdpath.state / "prefyl" / "startup"
-        assert(link:remove_link().await())
+        if link:exists().await() then
+            assert(link:remove_link().await())
+        end
         assert(last:link(link).await())
         return link
     end)
