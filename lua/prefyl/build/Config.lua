@@ -1,4 +1,5 @@
 local Path = require("prefyl.lib.Path")
+local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.build.Config
@@ -211,6 +212,7 @@ end)
 ---@param default_runtimepaths prefyl.Path[]
 ---@return prefyl.build.Config
 function M.load(default_runtimepaths)
+    async.vim.ensure_scheduled()
     ---@type boolean, prefyl._build?
     local _, config = pcall(require, "prefyl._build")
     if not config then

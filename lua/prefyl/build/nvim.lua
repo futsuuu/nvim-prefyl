@@ -1,12 +1,14 @@
 local Path = require("prefyl.lib.Path")
+local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
 local Chunk = require("prefyl.build.Chunk")
 
 local M = {}
 
----@return prefyl.Path[]
+---@return prefyl.async.Future<prefyl.Path[]>
 function M.default_runtimepaths()
+    async.vim.ensure_scheduled()
     local ps = {
         Path.new(vim.env.VIMRUNTIME),
         Path.new(vim.env.VIM) / ".." / ".." / "lib" / "nvim",
@@ -25,23 +27,38 @@ function M.default_runtimepaths()
     push(Path.stdpath.config_dirs[2])
     push(Path.stdpath.config_dirs[1])
     push(Path.stdpath.config)
-    return vim.iter(ps):filter(Path.exists):totable()
+    return async.join_all(vim.iter(ps)
+        :map(function(path) ---@param path prefyl.Path
+            return async.async(function()
+                return path:exists().await() and path or nil
+            end)
+        end)
+        :totable())
 end
+
+test.test("default_runtimepaths", function()
+    async.block_on(M.default_runtimepaths())
+end)
 
 ---@return prefyl.Path[]
 function M.default_packpaths()
+    async.vim.ensure_scheduled()
     return { Path.new(vim.env.VIMRUNTIME) }
 end
 
 ---@nodiscard
 ---@param path prefyl.Path
----@return prefyl.build.Chunk
+---@return prefyl.async.Future<prefyl.build.Chunk>
 function M.source(path)
-    if path:exists() then
-        return Chunk.new(('vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})\n'):format(path))
-    else
-        return Chunk.new("")
-    end
+    return async.async(function()
+        if path:exists().await() then
+            return Chunk.new(
+                ('vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})\n'):format(path)
+            )
+        else
+            return Chunk.new("")
+        end
+    end)
 end
 
 ---@nodiscard
