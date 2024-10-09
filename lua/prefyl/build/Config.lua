@@ -10,12 +10,14 @@ local M = {}
 M.__index = M
 
 ---@class prefyl.build.Config.StdSpec
+---@field type "std"
 ---@field disabled_plugins prefyl.Path[]
 M.StdSpec = {}
 ---@private
 M.StdSpec.__index = M.StdSpec
 
 ---@class prefyl.build.Config.PluginSpec
+---@field type "plugin"
 ---@field parent table<string, prefyl.build.Config.PluginSpec>
 ---@field name string
 ---@field url string?
@@ -219,6 +221,7 @@ function M.load(default_runtimepaths)
         ---@type prefyl.build.Config
         local build_config = {
             std = {
+                type = "std",
                 disabled_plugins = {},
             },
             plugins = {},
@@ -236,6 +239,7 @@ function M.load(default_runtimepaths)
 
     ---@type prefyl.build.Config.StdSpec
     local std = {
+        type = "std",
         disabled_plugins = vim.iter(default_runtimepaths)
             :map(function(path) ---@param path prefyl.Path
                 return expand_disabled_plugins(path, (config.std or {}).disabled_plugins or {})
@@ -265,6 +269,7 @@ function M.load(default_runtimepaths)
         local dir = plugin.dir and Path.new(plugin.dir) or (PLUGIN_ROOT / name)
         ---@type prefyl.build.Config.PluginSpec
         local spec = {
+            type = "plugin",
             parent = plugins,
             name = name,
             dir = dir,

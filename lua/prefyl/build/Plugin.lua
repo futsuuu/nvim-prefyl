@@ -1,7 +1,6 @@
 local async = require("prefyl.lib.async")
 
 local Chunk = require("prefyl.build.Chunk")
-local Config = require("prefyl.build.Config")
 local RuntimeDir = require("prefyl.build.RuntimeDir")
 local nvim = require("prefyl.build.nvim")
 local runtime = require("prefyl.build.runtime")
@@ -65,8 +64,8 @@ function M:initialize(out)
 
         local loader, after_loader = unpack(async
             .join_all({
-                self:load_rtdirs(false, self.spec.disabled_plugins),
-                self:load_rtdirs(true, self.spec.disabled_plugins),
+                self:load_rtdirs(false, spec.disabled_plugins),
+                self:load_rtdirs(true, spec.disabled_plugins),
             })
             .await())
         local loader = Chunk.scope()
@@ -80,39 +79,34 @@ function M:initialize(out)
             :extend(self:load_dependencies(true))
             :push(self:call_rt_hook("config"))
 
-        if self:is_std() then
-            ---@cast spec prefyl.build.Config.StdSpec
+        if spec.type == "std" then
             scope:extend(loader):extend(after_loader)
-        else
-            ---@cast spec prefyl.build.Config.PluginSpec
-            if spec.lazy then
-                local loader_file = out:write(loader:to_chunk():tostring()).await()
-                local after_loader_file = out:write(after_loader:to_chunk():tostring()).await()
-                scope
-                    :push(runtime.prefetch_file(loader_file))
-                    :push(runtime.prefetch_file(after_loader_file))
-                    :push(
-                        runtime.set_plugin_loader(
-                            spec.name,
-                            runtime.do_file_sync(loader_file),
-                            runtime.do_file_sync(after_loader_file)
-                        )
+        elseif spec.lazy then
+            local loader_file = out:write(loader:to_chunk():tostring()).await()
+            local after_loader_file = out:write(after_loader:to_chunk():tostring()).await()
+            scope
+                :push(runtime.prefetch_file(loader_file))
+                :push(runtime.prefetch_file(after_loader_file))
+                :push(
+                    runtime.set_plugin_loader(
+                        spec.name,
+                        runtime.do_file_sync(loader_file),
+                        runtime.do_file_sync(after_loader_file)
                     )
-            else
-                scope:push(
-                    runtime.set_plugin_loader(spec.name, loader:to_chunk(), after_loader:to_chunk())
                 )
-            end
+        else
+            scope:push(
+                runtime.set_plugin_loader(spec.name, loader:to_chunk(), after_loader:to_chunk())
+            )
         end
 
         scope:extend(self:setup_lazy_handlers())
 
         scope:push(self:call_rt_hook("init"))
 
-        if self:is_std() then
+        if spec.type == "std" then
             return scope:to_chunk()
         end
-        ---@cast spec prefyl.build.Config.PluginSpec
 
         local config = assert(self:rt_config())
         return Chunk.if_(
@@ -131,17 +125,11 @@ function M:initialize(out)
 end
 
 ---@return boolean
-function M:is_std()
-    return (getmetatable(self.spec) or {}).__index == Config.StdSpec
-end
-
----@return boolean
 function M:is_enabled()
     local spec = self.spec
-    if self:is_std() then
+    if spec.type == "std" then
         return true
     end
-    ---@cast spec prefyl.build.Config.PluginSpec
     if not spec.enabled then
         return false
     end
@@ -156,10 +144,9 @@ end
 ---@return boolean
 function M:is_lazy()
     local spec = self.spec
-    if self:is_std() then
+    if spec.type == "std" then
         return false
     end
-    ---@cast spec prefyl.build.Config.PluginSpec
     return spec.lazy
 end
 
@@ -213,7 +200,7 @@ function M:set_rtp()
             return rtdir.dir
         end)
         :totable()
-    if self:is_std() then
+    if self.spec.type == "std" then
         return nvim.set_rtp(paths)
     else
         return nvim.add_to_rtp(paths)
@@ -236,12 +223,7 @@ function M:setup_lazy_handlers()
     local scope = Chunk.scope()
 
     local spec = self.spec
-    if self:is_std() then
-        return scope
-    end
-    ---@cast spec prefyl.build.Config.PluginSpec
-
-    if not spec.lazy then
+    if spec.type == "std" or not spec.lazy then
         return scope
     end
 
@@ -285,10 +267,9 @@ end
 ---@return prefyl.build.Chunk[]
 function M:load_dependencies(after)
     local spec = self.spec
-    if self:is_std() then
+    if spec.type == "std" then
         return {}
     end
-    ---@cast spec prefyl.build.Config.PluginSpec
     if not after then
         return vim.iter(spec.deps.directly):map(runtime.load_plugin):totable()
     else
@@ -299,10 +280,9 @@ end
 ---@return prefyl.build.Chunk?
 function M:rt_config()
     local spec = self.spec
-    if self:is_std() then
+    if spec.type == "std" then
         return
     end
-    ---@cast spec prefyl.build.Config.PluginSpec
     return Chunk.new(
         ("local plugin = %s[%q] or {}\n"):format(rt_configs:get_output(), spec.name),
         { output = "plugin", inputs = { rt_configs } }
