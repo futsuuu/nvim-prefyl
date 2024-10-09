@@ -323,13 +323,6 @@ function M:is_dir()
     end)
 end
 
----@param expr string
----@return prefyl.Path[]
-function M:glob(expr)
-    async.vim.ensure_scheduled()
-    return vim.iter(vim.fn.glob(self.path .. "/" .. expr, false, true)):map(M.new):totable()
-end
-
 ---@return prefyl.async.Future<string?, string?>: data?, err?
 function M:read()
     return async.async(function()
@@ -353,7 +346,9 @@ function M:read()
     end)
 end
 
----@alias prefyl.Path.ReadDirEntry { path: prefyl.Path, type: uv.aliases.fs_types }
+---@class prefyl.Path.ReadDirEntry
+---@field path prefyl.Path
+---@field type uv.aliases.fs_types
 
 ---@return prefyl.async.Future<prefyl.channel.Receiver<prefyl.Path.ReadDirEntry>?, string?>
 function M:read_dir()
@@ -395,6 +390,78 @@ function M:read_dir()
 
         return rx
     end)
+end
+
+---@class prefyl.Path.WalkDirEntry: prefyl.Path.ReadDirEntry
+---@field depth integer
+
+---@class prefyl.Path.WalkDirOpts
+---@field filter (fun(entry: prefyl.Path.WalkDirEntry): boolean)?
+---@field min_depth integer?
+---@field max_depth integer?
+
+---@param path prefyl.Path
+---@param tx prefyl.channel.Sender<prefyl.Path.WalkDirEntry>
+---@param opts prefyl.Path.WalkDirOpts
+---@param depth integer
+---@return prefyl.async.Future<boolean?, string?>
+local function walk_dir(path, tx, opts, depth)
+    return async.async(function()
+        local reader, err = path:read_dir().await()
+        if not reader then
+            return nil, err
+        end
+
+        local futures = {}
+        while true do
+            local entry = reader().await() ---@type prefyl.Path.ReadDirEntry?
+            if not entry then
+                break
+            end
+
+            ---@type prefyl.Path.WalkDirEntry
+            local entry = {
+                depth = depth,
+                path = entry.path,
+                type = entry.type,
+            }
+            local send = true
+            if opts.filter and opts.filter(entry) == false then
+                send = false
+            end
+            if send then
+                if (opts.min_depth or 1) <= depth and not tx(entry) then
+                    break
+                end
+                if depth < (opts.max_depth or math.huge) and entry.type == "directory" then
+                    local f = async.async(function()
+                        return list.pack(walk_dir(entry.path, tx, opts, depth + 1).await())
+                    end)
+                    table.insert(futures, f)
+                end
+            end
+        end
+
+        for _, result in ipairs(async.join_all(futures).await()) do
+            local success, err = list.unpack(result)
+            if not success then
+                return nil, err
+            end
+        end
+
+        return true
+    end)
+end
+
+---@param opts prefyl.Path.WalkDirOpts?
+---@return prefyl.channel.Receiver<prefyl.Path.WalkDirEntry>
+function M:walk_dir(opts)
+    local tx, rx = channel.new()
+    async.async(function()
+        walk_dir(self, tx, opts or {}, 1).await()
+        channel.close(tx)
+    end)
+    return rx
 end
 
 ---@return prefyl.async.Future<integer?, string?>: bytes?, err?
