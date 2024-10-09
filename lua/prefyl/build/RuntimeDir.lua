@@ -1,67 +1,51 @@
 local Path = require("prefyl.lib.Path")
-local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
 local dump = require("prefyl.build.dump")
 
----@param v boolean
----@param l boolean
----@return fun(entry: prefyl.Path.WalkDirEntry): boolean
-local function vim_lua(v, l)
-    ---@param entry prefyl.Path.WalkDirEntry
-    return function(entry)
-        if entry.type == "file" then
-            local ext = entry.path:ext()
-            return v == (ext == "vim") or l == (ext == "lua")
-        end
-        return true
-    end
-end
+---@enum prefyl.build.RuntimeDir.DirKind
+local DirKind = {
+    PLUGIN = 1,
+    FTDETECT = 2,
+    LUA = 3,
+    COLORS = 4,
+    INDENT = 5,
+    FTPLUGIN = 6,
+    SYNTAX = 7,
+}
 
----@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path.WalkDirOpts>
----@enum (key) prefyl.build.RuntimeDir.DirKind
-local walk_opts = {
+---@type table<prefyl.build.RuntimeDir.DirKind, string[]>
+local patterns = {
     -- load when added to `&runtimepath`
-    plugin = {
-        -- plugin/**/*.{vim,lua}
-        filter = vim_lua(true, true),
-    },
+    [DirKind.PLUGIN] = { "plugin/**/*.{vim,lua}" },
     -- load when added to `&runtimepath`
-    ftdetect = {
-        -- ftdetect/*.{vim,lua}
-        filter = vim_lua(true, true),
-        max_depth = 1,
-    },
+    [DirKind.FTDETECT] = { "ftdetect/*.{vim,lua}" },
     -- load when `require()` is called
-    lua = {
-        -- lua/**/*.lua
-        filter = vim_lua(false, true),
-    },
+    [DirKind.LUA] = { "lua/**/*.lua" },
     -- load on `ColorSchemePre` event
-    colors = {
+    [DirKind.COLORS] = {
         -- colors/<amatch>.{vim,lua}
-        filter = vim_lua(true, true),
-        max_depth = 1,
+        "colors/*.{vim,lua}",
     },
     -- load on `FileType` event
-    indent = {
+    [DirKind.INDENT] = {
         -- indent/<amatch>.{vim,lua}
-        filter = vim_lua(true, true),
+        "indent/*.{vim,lua}",
     },
     -- load on `FileType` event
-    ftplugin = {
+    [DirKind.FTPLUGIN] = {
         -- ftplugin/<amatch>.{vim,lua}
         -- ftplugin/<amatch>_*.{vim,lua}
+        "ftplugin/*.{vim,lua}",
         -- ftplugin/<amatch>/*.{vim,lua}
-        filter = vim_lua(true, true),
-        max_depth = 2,
+        "ftplugin/*/*.{vim,lua}",
     },
     -- load on `Syntax` event
-    syntax = {
+    [DirKind.SYNTAX] = {
         -- syntax/<amatch>.{vim,lua}
+        "syntax/*.{vim,lua}",
         -- syntax/<amatch>/*.{vim,lua}
-        filter = vim_lua(true, true),
-        max_depth = 2,
+        "syntax/*/*.{vim,lua}",
     },
 }
 
@@ -110,48 +94,34 @@ end)
 local M = {}
 
 ---@param dir prefyl.Path
----@return prefyl.async.Future<prefyl.build.RuntimeDir>
+---@return prefyl.build.RuntimeDir
 function M.new(dir)
-    return async.async(function()
-        ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.async.Future<prefyl.Path[]>>
-        local files = {}
-        for name, opts in pairs(walk_opts) do
-            files[name] = async.async(function()
-                local walker = assert((dir / name):walk_dir(opts))
-                local result = {}
-                while true do
-                    local entry = walker().await() ---@type prefyl.Path.WalkDirEntry?
-                    if not entry then
-                        break
-                    end
-                    if entry.type == "file" then
-                        table.insert(result, entry.path)
-                    end
-                end
-                return result
+    local files = {} ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
+    for kind, ps in pairs(patterns) do
+        files[kind] = vim.iter(ps)
+            :map(function(p)
+                return dir:glob(p)
             end)
-        end
-        ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
-        local files = async.join_all(files).await()
+            :flatten()
+            :totable()
+    end
 
-        ---@type prefyl.build.RuntimeDir
-        return {
-            dir = dir,
-            plugin_files = files["plugin"],
-            ftdetect_files = files["ftdetect"],
-            luamodules = async
-                .join_all(vim.iter(files["lua"]):fold({}, function(acc, path) ---@param path prefyl.Path
-                    acc[get_luamodule(dir, path)] = dump(path)
-                    return acc
-                end))
-                .await(),
-            colorschemes = vim.iter(files["colors"])
-                :map(function(path)
-                    return get_colorscheme(dir, path)
-                end)
-                :totable(),
-        }
-    end)
+    ---@type prefyl.build.RuntimeDir
+    return {
+        dir = dir,
+        plugin_files = files[DirKind.PLUGIN],
+        ftdetect_files = files[DirKind.FTDETECT],
+        luamodules = vim.iter(files[DirKind.LUA])
+            :fold({}, function(acc, path) ---@param path prefyl.Path
+                acc[get_luamodule(dir, path)] = dump(path)
+                return acc
+            end),
+        colorschemes = vim.iter(files[DirKind.COLORS])
+            :map(function(path)
+                return get_colorscheme(dir, path)
+            end)
+            :totable(),
+    }
 end
 
 return M

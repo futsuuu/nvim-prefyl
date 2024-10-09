@@ -1,5 +1,3 @@
-local async = require("prefyl.lib.async")
-
 local Base = require("prefyl.build.installer.Base")
 
 ---@class prefyl.build.installer.Git: prefyl.build.Installer
@@ -23,8 +21,7 @@ end
 
 ---@return boolean
 function M:is_installed()
-    -- TODO: async
-    return async.block_on(self.dir:exists())
+    return self.dir:exists()
 end
 
 function M:install()
