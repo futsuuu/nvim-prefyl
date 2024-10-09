@@ -353,7 +353,9 @@ function M:read()
     end)
 end
 
----@return prefyl.async.Future<prefyl.channel.Receiver<prefyl.async.uv.ReadDirEntry>?, string?>
+---@alias prefyl.Path.ReadDirEntry { path: prefyl.Path, type: uv.aliases.fs_types }
+
+---@return prefyl.async.Future<prefyl.channel.Receiver<prefyl.Path.ReadDirEntry>?, string?>
 function M:read_dir()
     return async.async(function()
         local tx, rx = channel.new()
@@ -376,6 +378,11 @@ function M:read_dir()
             end
             local br = false
             for _, entry in ipairs(entries) do
+                ---@type prefyl.Path.ReadDirEntry
+                local entry = {
+                    path = self / entry.name,
+                    type = entry.type,
+                }
                 br = not tx(entry)
                 if br then
                     break
@@ -465,18 +472,17 @@ function M:remove_dir_all()
 
         local futures = {}
         while true do
-            local entry = reader().await() ---@type prefyl.async.uv.ReadDirEntry?
+            local entry = reader().await() ---@type prefyl.Path.ReadDirEntry?
             if not entry then
                 break
             end
-            local path = self / entry.name
             local future = async.async(function()
                 if entry.type == "directory" then
-                    return list.pack(path:remove_dir_all().await())
+                    return list.pack(entry.path:remove_dir_all().await())
                 elseif entry.type == "link" then
-                    return list.pack(path:remove_link().await())
+                    return list.pack(entry.path:remove_link().await())
                 else
-                    return list.pack(path:remove_file())
+                    return list.pack(entry.path:remove_file())
                 end
             end)
             table.insert(futures, future)
