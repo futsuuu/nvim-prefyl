@@ -6,9 +6,8 @@ function M.len(list)
     return (getmetatable(list) or {}).len or #list
 end
 
----@generic T
----@param ... T
----@return T[]
+---@param ... any
+---@return any[]
 function M.pack(...)
     return setmetatable({ ... }, {
         len = select("#", ...),
@@ -21,11 +20,10 @@ function M.pack(...)
     })
 end
 
----@generic T
----@param t T[]
+---@param t any[]
 ---@param i uinteger?
 ---@param j uinteger?
----@return T ...
+---@return any ...
 function M.unpack(t, i, j)
     return unpack(t, i, j or M.len(t))
 end
