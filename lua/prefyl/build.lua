@@ -1,5 +1,6 @@
 local Path = require("prefyl.lib.Path")
 local async = require("prefyl.lib.async")
+local result = require("prefyl.lib.result")
 local str = require("prefyl.lib.str")
 
 local Chunk = require("prefyl.build.Chunk")
@@ -14,15 +15,15 @@ local runtime = require("prefyl.build.runtime")
 local M = {}
 
 ---@param strip boolean
----@return prefyl.async.Future<prefyl.Path>
+---@return prefyl.async.Future<prefyl.Result<prefyl.Path, any>>
 function M.build(strip)
-    return async.async(function()
+    return async.async(result.wrap(function()
         local default_runtimepaths = nvim.default_runtimepaths().await()
         local config = Config.load(default_runtimepaths)
 
         installer.install(config)
 
-        local out = Out.new(strip).await()
+        local out = Out.new(strip).await().ensure()
 
         local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
         local s = str.dedent([[
@@ -31,7 +32,7 @@ function M.build(strip)
         vim.api.nvim_set_option_value("loadplugins", false, {})
         vim.api.nvim_set_option_value("packpath", %q, {})
         ]]):format(
-            dump(runtime_file, strip).await(),
+            dump(runtime_file, strip).await().ensure(),
             runtime_file:chunkname(),
             vim.iter(nvim.default_packpaths()):map(tostring):join(",")
         )
@@ -70,8 +71,8 @@ function M.build(strip)
         s = s .. scope:to_chunk():tostring()
 
         out:write(s).await()
-        return out:finish().await()
-    end)
+        return result.ok(out:finish().await())
+    end))
 end
 
 return M

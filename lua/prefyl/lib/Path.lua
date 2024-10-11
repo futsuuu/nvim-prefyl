@@ -1,6 +1,7 @@
 local async = require("prefyl.lib.async")
 local channel = require("prefyl.lib.channel")
 local list = require("prefyl.lib.list")
+local result = require("prefyl.lib.result")
 local test = require("prefyl.lib.test")
 
 ---@class prefyl.Path
@@ -278,26 +279,25 @@ function M:encode(rfc)
     return vim.uri_encode(self.path, rfc)
 end
 
----@return prefyl.async.Future<boolean?, string?>
+---@return prefyl.async.Future<prefyl.Result<true, string>>
 function M:create_dir()
-    return (async.uv.fs_mkdir(self.path, 493)) -- 0o755
+    return async.async(function()
+        return result.from_opt(async.uv.fs_mkdir(self.path, 493).await()) -- 0o755
+    end)
 end
 
----@return prefyl.async.Future<boolean?, string?>
+---@return prefyl.async.Future<prefyl.Result<true, string>>
 function M:create_dir_all()
-    return async.async(function()
+    return async.async(result.wrap(function()
         if self:is_dir().await() then
-            return true
+            return result.ok(true)
         end
         local parent = self / ".."
-        if not parent:exists() then
-            local success, err = parent:create_dir_all().await()
-            if not success then
-                return nil, err
-            end
+        if not parent:exists().await() then
+            parent:create_dir_all().await().ensure()
         end
         return self:create_dir().await()
-    end)
+    end))
 end
 
 ---@protected

@@ -1,5 +1,6 @@
 local Path = require("prefyl.lib.Path")
 local async = require("prefyl.lib.async")
+local result = require("prefyl.lib.result")
 
 ---@class prefyl.build.Out
 ---@field package strip boolean
@@ -11,9 +12,9 @@ local M = {}
 M.__index = M
 
 ---@param strip boolean
----@return prefyl.async.Future<prefyl.build.Out>
+---@return prefyl.async.Future<prefyl.Result<prefyl.build.Out, string>>
 function M.new(strip)
-    return async.async(function()
+    return async.async(result.wrap(function()
         ---@type prefyl.build.Out
         local self = {
             strip = strip,
@@ -22,9 +23,9 @@ function M.new(strip)
             last = nil,
         }
         assert(self.dir:remove_dir_all().await())
-        assert(self.dir:create_dir_all().await())
-        return setmetatable(self, M)
-    end)
+        self.dir:create_dir_all().await().ensure()
+        return result.ok(setmetatable(self, M))
+    end))
 end
 
 ---@return prefyl.async.Future<prefyl.Path>
