@@ -27,7 +27,7 @@ function M.default_runtimepaths()
     push(Path.stdpath.config_dirs[2])
     push(Path.stdpath.config_dirs[1])
     push(Path.stdpath.config)
-    return async.join_all(vim.iter(ps)
+    return async.join_list(vim.iter(ps)
         :map(function(path) ---@param path prefyl.Path
             return async.async(function()
                 return path:exists().await() and path or nil

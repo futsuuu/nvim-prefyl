@@ -59,7 +59,7 @@ function M.build(strip)
             end)
             table.insert(initializers, initializer)
         end
-        scope:extend(async.join_all(initializers).await())
+        scope:extend(async.join_list(initializers).await())
 
         for name, plugin in pairs(plugins) do
             if not plugin.await():is_lazy() then

@@ -9,10 +9,11 @@ local async = require("prefyl.lib.async")
 
 ---@nodiscard
 ---@generic A, B, C, D, E, F, G, T, U, V, W, X, Y, Z
----@param executor fun(finish: fun(a: A?, b: B?, c: C?, d: D?, e: E?, f: F?, g: G?)): T?, U?, V?, W?, X?, Y?, Z?
+---@param executor fun(finish: fun(a: A?, b: B?, c: C?, d: D?, e: E?, f: F?, g: G?), ...: any): T?, U?, V?, W?, X?, Y?, Z?
+---@param ... any: additional arguments for `executor`
 ---@return prefyl.async.Future<A?, B?, C?, D?, E?, F?, G?>
 ---@return T?, U?, V?, W?, X?, Y?, Z?
-function M.new(executor)
+function M.new(executor, ...)
     local threads = {} ---@type thread[]
     local result = nil ---@type table?
 
@@ -39,7 +40,7 @@ function M.new(executor)
         return list.unpack(result)
     end
 
-    return setmetatable({ await = await }, M), executor(finish)
+    return setmetatable({ await = await }, M), executor(finish, ...)
 end
 
 test.group("new", function()

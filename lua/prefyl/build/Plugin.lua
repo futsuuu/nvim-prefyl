@@ -23,7 +23,7 @@ function M.new(spec)
         local self = setmetatable({}, M)
         self.spec = spec
         self.rtdirs = async
-            .join_all({
+            .join_list({
                 RuntimeDir.new(spec.dir),
                 RuntimeDir.new(spec.dir / "after"),
             })
@@ -39,7 +39,7 @@ function M.new_std(spec, paths)
     return async.async(function()
         local self = setmetatable({}, M)
         self.spec = spec
-        self.rtdirs = async.join_all(vim.iter(paths):map(RuntimeDir.new):totable()).await()
+        self.rtdirs = async.join_list(vim.iter(paths):map(RuntimeDir.new):totable()).await()
         return self
     end)
 end
@@ -58,12 +58,12 @@ function M:initialize(out)
 
         local scope = Chunk.scope()
 
-        local loader, after_loader = unpack(async
-            .join_all({
+        local loader, after_loader = async
+            .join(
                 self:load_rtdirs(false, spec.disabled_plugins),
-                self:load_rtdirs(true, spec.disabled_plugins),
-            })
-            .await())
+                self:load_rtdirs(true, spec.disabled_plugins)
+            )
+            .await()
         local loader = Chunk.scope()
             :extend(self:load_dependencies(false))
             :push(self:set_rtp())
@@ -183,8 +183,8 @@ function M:load_rtdirs(after, disabled_plugins)
             :totable()
 
         return Chunk.scope()
-            :extend(async.join_all(plugin_files).await())
-            :extend(nvim.augroup("filetypedetect", async.join_all(ftdetect_files).await()))
+            :extend(async.join_list(plugin_files).await())
+            :extend(nvim.augroup("filetypedetect", async.join_list(ftdetect_files).await()))
     end)
 end
 

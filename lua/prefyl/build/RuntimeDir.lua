@@ -138,7 +138,7 @@ function M.new(dir)
             end)
         end
         ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.Path[]>
-        local files = async.join_all(files).await()
+        local files = async.join_dict(files).await()
 
         ---@type prefyl.build.RuntimeDir
         return {
@@ -146,7 +146,7 @@ function M.new(dir)
             plugin_files = files["plugin"],
             ftdetect_files = files["ftdetect"],
             luamodules = async
-                .join_all(vim.iter(files["lua"]):fold({}, function(acc, path) ---@param path prefyl.Path
+                .join_dict(vim.iter(files["lua"]):fold({}, function(acc, path) ---@param path prefyl.Path
                     acc[get_luamodule(dir, path)] = dump(path)
                     return acc
                 end))

@@ -439,7 +439,7 @@ local function walk_dir(path, tx, opts, depth)
             end
         end
 
-        for _, result in ipairs(async.join_all(futures).await()) do
+        for _, result in ipairs(async.join_list(futures).await()) do
             local success, err = list.unpack(result)
             if not success then
                 return nil, err
@@ -552,7 +552,7 @@ function M:remove_dir_all()
             table.insert(futures, future)
         end
 
-        for _, result in ipairs(async.join_all(futures).await()) do
+        for _, result in ipairs(async.join_list(futures).await()) do
             local success, err = list.unpack(result)
             if not success then
                 return nil, err
