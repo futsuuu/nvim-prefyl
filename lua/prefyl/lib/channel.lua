@@ -41,14 +41,12 @@ end
 
 ---@return self
 function State.new()
-    ---@type prefyl.channel.State
-    local self = {
-        is_closed = false,
-        values = {},
-        recv_callbacks = {},
-        close_callbacks = {},
-    }
-    return setmetatable(self, State)
+    local self = setmetatable({}, State)
+    self.is_closed = false
+    self.values = {}
+    self.recv_callbacks = {}
+    self.close_callbacks = {}
+    return self
 end
 
 ---@param value any

@@ -6,8 +6,8 @@ local nvim = require("prefyl.build.nvim")
 local runtime = require("prefyl.build.runtime")
 
 ---@class prefyl.build.Plugin
----@field private spec prefyl.build.Config.PluginSpec | prefyl.build.Config.StdSpec
----@field private rtdirs prefyl.build.RuntimeDir[]
+---@field package spec prefyl.build.Config.PluginSpec | prefyl.build.Config.StdSpec
+---@field package rtdirs prefyl.build.RuntimeDir[]
 local M = {}
 ---@private
 M.__index = M
@@ -20,17 +20,15 @@ local rt_configs = Chunk.new('local plugins = require("prefyl.runtime.config").p
 ---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new(spec)
     return async.async(function()
-        ---@type prefyl.build.Plugin
-        local self = {
-            spec = spec,
-            rtdirs = async
-                .join_all({
-                    RuntimeDir.new(spec.dir),
-                    RuntimeDir.new(spec.dir / "after"),
-                })
-                .await(),
-        }
-        return setmetatable(self, M)
+        local self = setmetatable({}, M)
+        self.spec = spec
+        self.rtdirs = async
+            .join_all({
+                RuntimeDir.new(spec.dir),
+                RuntimeDir.new(spec.dir / "after"),
+            })
+            .await()
+        return self
     end)
 end
 
@@ -39,12 +37,10 @@ end
 ---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new_std(spec, paths)
     return async.async(function()
-        ---@type prefyl.build.Plugin
-        local self = {
-            spec = spec,
-            rtdirs = async.join_all(vim.iter(paths):map(RuntimeDir.new):totable()).await(),
-        }
-        return setmetatable(self, M)
+        local self = setmetatable({}, M)
+        self.spec = spec
+        self.rtdirs = async.join_all(vim.iter(paths):map(RuntimeDir.new):totable()).await()
+        return self
     end)
 end
 

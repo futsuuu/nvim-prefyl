@@ -2,19 +2,15 @@ local Path = require("prefyl.lib.Path")
 local async = require("prefyl.lib.async")
 local test = require("prefyl.lib.test")
 
+local M = {}
+
 ---@class prefyl.build.Config
 ---@field std prefyl.build.Config.StdSpec
 ---@field plugins table<string, prefyl.build.Config.PluginSpec>
-local M = {}
----@private
-M.__index = M
 
 ---@class prefyl.build.Config.StdSpec
 ---@field type "std"
 ---@field disabled_plugins prefyl.Path[]
-M.StdSpec = {}
----@private
-M.StdSpec.__index = M.StdSpec
 
 ---@class prefyl.build.Config.PluginSpec
 ---@field type "plugin"
@@ -30,9 +26,6 @@ M.StdSpec.__index = M.StdSpec
 ---@field luamodule boolean
 ---@field colorscheme boolean
 ---@field disabled_plugins prefyl.Path[]
-M.PluginSpec = {}
----@private
-M.PluginSpec.__index = M.PluginSpec
 
 ---@class prefyl.build.Config.Event
 ---@field event string | string[]
@@ -219,14 +212,13 @@ function M.load(default_runtimepaths)
     local _, config = pcall(require, "prefyl._build")
     if not config then
         ---@type prefyl.build.Config
-        local build_config = {
+        return {
             std = {
                 type = "std",
                 disabled_plugins = {},
             },
             plugins = {},
         }
-        return setmetatable(build_config, M)
     end
 
     ---@type table<string, string[]>
@@ -247,7 +239,6 @@ function M.load(default_runtimepaths)
             :flatten()
             :totable(),
     }
-    setmetatable(std, M.StdSpec)
 
     ---@type table<string, prefyl.build.Config.PluginSpec>
     local plugins = {}
@@ -288,16 +279,14 @@ function M.load(default_runtimepaths)
                 :flatten()
                 :totable(),
         }
-        setmetatable(spec, M.PluginSpec)
         plugins[name] = spec
     end
 
     ---@type prefyl.build.Config
-    local build_config = {
+    return {
         std = std,
         plugins = plugins,
     }
-    return setmetatable(build_config, M)
 end
 
 return M

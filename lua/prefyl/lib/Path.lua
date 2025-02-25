@@ -289,18 +289,15 @@ function M:create_dir_all()
         if self:is_dir().await() then
             return true
         end
-        local parent = self / ".."
-        if not parent:exists() then
-            local success, err = parent:create_dir_all().await()
-            if not success then
-                return nil, err
-            end
+        local success, err = (self / ".."):create_dir_all().await()
+        if not success then
+            return nil, err
         end
         return self:create_dir().await()
     end)
 end
 
----@protected
+---@package
 ---@return prefyl.async.Future<uv.aliases.fs_stat_table?>
 function M:stat()
     return async.async(function()

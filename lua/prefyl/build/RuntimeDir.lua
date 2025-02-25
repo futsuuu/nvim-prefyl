@@ -10,11 +10,16 @@ local dump = require("prefyl.build.dump")
 local function vim_lua(v, l)
     ---@param entry prefyl.Path.WalkDirEntry
     return function(entry)
-        if entry.type == "file" then
-            local ext = entry.path:ext()
-            return v == (ext == "vim") or l == (ext == "lua")
+        if entry.type ~= "file" then
+            return true
         end
-        return true
+        local ext = entry.path:ext()
+        if v and ext == "vim" then
+            return true
+        elseif l and ext == "lua" then
+            return true
+        end
+        return false
     end
 end
 
@@ -107,6 +112,7 @@ end)
 ---@field ftdetect_files prefyl.Path[]
 ---@field luamodules table<string, string>
 ---@field colorschemes string[]
+
 local M = {}
 
 ---@param dir prefyl.Path

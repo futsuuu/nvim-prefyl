@@ -135,14 +135,12 @@ function M.new(chunk, opts)
     opts = opts or {}
     local inputs = flatten_inputs(opts.inputs or {})
     local fixed = is_fixed(opts.fixed, opts.output, inputs)
-    ---@type prefyl.build.Chunk
-    local self = {
-        inner = chunk,
-        inputs = inputs,
-        output = opts.output,
-        fixed = fixed,
-    }
-    return setmetatable(self, M)
+    local self = setmetatable({}, M)
+    self.inner = chunk
+    self.inputs = inputs
+    self.output = opts.output
+    self.fixed = fixed
+    return self
 end
 
 ---@return string

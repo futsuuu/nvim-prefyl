@@ -14,16 +14,14 @@ M.__index = M
 ---@return prefyl.async.Future<prefyl.build.Out>
 function M.new(strip)
     return async.async(function()
-        ---@type prefyl.build.Out
-        local self = {
-            strip = strip,
-            dir = Path.stdpath.state / "prefyl" / (strip and "s" or "d"),
-            counter = 0,
-            last = nil,
-        }
+        local self = setmetatable({}, M)
+        self.strip = strip
+        self.dir = Path.stdpath.state / "prefyl" / (strip and "s" or "d")
+        self.counter = 0
+        self.last = nil
         assert(self.dir:remove_dir_all().await())
         assert(self.dir:create_dir_all().await())
-        return setmetatable(self, M)
+        return self
     end)
 end
 
