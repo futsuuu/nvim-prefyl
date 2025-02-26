@@ -15,7 +15,7 @@ local threads = {} ---@type table<thread, true>
 ---@generic T, U, V, W, X, Y, Z
 ---@param func fun(): T?, U?, V?, W?, X?, Y?, Z?
 ---@return prefyl.async.Future<T?, U?, V?, W?, X?, Y?, Z?>
-function M.async(func)
+function M.run(func)
     return Future.new(function(finish)
         local co
         co = coroutine.create(function()
@@ -45,7 +45,7 @@ end
 ---@return T?, U?, V?, W?, X?, Y?, Z?
 function M.block_on(future)
     local finished = false
-    M.async(function()
+    M.run(function()
         future.await()
         finished = true
     end)
@@ -68,7 +68,7 @@ function M.join(...)
         local done = 0
         for i = 1, len do
             local future = select(i, ...)
-            M.async(function()
+            M.run(function()
                 result[i] = future.await()
                 done = done + 1
                 if done == len then
@@ -87,13 +87,13 @@ test.group("join", function()
     test.test("join", function()
         test.assert_eq({ 1, nil, 3 }, {
             M.join(
-                M.async(function()
+                M.run(function()
                     return 1
                 end),
-                M.async(function()
+                M.run(function()
                     return nil, 2
                 end),
-                M.async(function()
+                M.run(function()
                     return 3
                 end)
             ).await(),
@@ -113,7 +113,7 @@ function M.join_list(futures)
         local result = {}
         local done = 0
         for _, future in ipairs(futures) do
-            M.async(function()
+            M.run(function()
                 table.insert(result, (future.await()))
                 done = done + 1
                 if done == len then
@@ -133,13 +133,13 @@ test.group("join_list", function()
         test.assert_eq(
             { 1, 3 },
             M.join_list({
-                M.async(function()
+                M.run(function()
                     return 1
                 end),
-                M.async(function()
+                M.run(function()
                     return nil, 2
                 end),
-                M.async(function()
+                M.run(function()
                     return 3
                 end),
             }).await()
@@ -159,7 +159,7 @@ function M.join_dict(futures)
         local result = {}
         local done = 0
         for key, future in pairs(futures) do
-            M.async(function()
+            M.run(function()
                 result[key] = future.await()
                 done = done + 1
                 if done == len then
@@ -179,15 +179,15 @@ test.group("join_dict", function()
         test.assert_eq(
             { a = 1, c = 3 },
             M.block_on(M.join_dict({
-                a = M.async(function()
+                a = M.run(function()
                     M.time.sleep(100).await()
                     return 1
                 end),
-                b = M.async(function()
+                b = M.run(function()
                     M.time.sleep(200).await()
                     return nil, 2
                 end),
-                c = M.async(function()
+                c = M.run(function()
                     M.time.sleep(300).await()
                     return 3
                 end),

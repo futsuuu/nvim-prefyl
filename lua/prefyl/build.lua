@@ -16,7 +16,7 @@ local M = {}
 ---@param strip boolean
 ---@return prefyl.async.Future<prefyl.Path>
 function M.build(strip)
-    return async.async(function()
+    return async.run(function()
         local default_runtimepaths = nvim.default_runtimepaths().await()
         local config = Config.load(default_runtimepaths)
 
@@ -51,7 +51,7 @@ function M.build(strip)
             local futures = {}
             for name, spec in pairs(config.plugins) do
                 if not vim.list_contains(default_runtimepaths, spec.dir) then
-                    local future = async.async(function()
+                    local future = async.run(function()
                         local plugin = Plugin.new(spec).await()
                         table.insert(initializers, plugin:initialize(out).await())
                         if not plugin:is_lazy() then

@@ -29,7 +29,7 @@ function M.default_runtimepaths()
     push(Path.stdpath.config)
     return async.join_list(vim.iter(ps)
         :map(function(path) ---@param path prefyl.Path
-            return async.async(function()
+            return async.run(function()
                 return path:exists().await() and path or nil
             end)
         end)
@@ -50,7 +50,7 @@ end
 ---@param path prefyl.Path
 ---@return prefyl.async.Future<prefyl.build.Chunk>
 function M.source(path)
-    return async.async(function()
+    return async.run(function()
         if path:exists().await() then
             return Chunk.new(
                 ('vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})\n'):format(path)

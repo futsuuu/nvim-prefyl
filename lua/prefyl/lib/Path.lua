@@ -285,7 +285,7 @@ end
 
 ---@return prefyl.async.Future<boolean?, string?>
 function M:create_dir_all()
-    return async.async(function()
+    return async.run(function()
         if self:is_dir().await() then
             return true
         end
@@ -300,21 +300,21 @@ end
 ---@package
 ---@return prefyl.async.Future<uv.aliases.fs_stat_table?>
 function M:stat()
-    return async.async(function()
+    return async.run(function()
         return (async.uv.fs_stat(self.path).await())
     end)
 end
 
 ---@return prefyl.async.Future<boolean>
 function M:exists()
-    return async.async(function()
+    return async.run(function()
         return self:stat().await() ~= nil
     end)
 end
 
 ---@return prefyl.async.Future<boolean>
 function M:is_dir()
-    return async.async(function()
+    return async.run(function()
         local stat = self:stat().await()
         return stat and stat.type == "directory" or false
     end)
@@ -322,7 +322,7 @@ end
 
 ---@return prefyl.async.Future<string?, string?>: data?, err?
 function M:read()
-    return async.async(function()
+    return async.run(function()
         local fd, err = async.uv.fs_open(self.path, "r", 292).await() -- 0o444
         if not fd then
             return nil, err
@@ -349,7 +349,7 @@ end
 
 ---@return prefyl.async.Future<prefyl.channel.Receiver<prefyl.Path.ReadDirEntry>?, string?>
 function M:read_dir()
-    return async.async(function()
+    return async.run(function()
         local tx, rx = channel.new()
 
         local dir, err = async.uv.fs_opendir(self.path).await()
@@ -357,7 +357,7 @@ function M:read_dir()
             return nil, err
         end
 
-        async.async(function()
+        async.run(function()
             channel.closed(rx).await()
             assert(dir:closedir().await())
         end)
@@ -403,7 +403,7 @@ end
 ---@param depth integer
 ---@return prefyl.async.Future<boolean?, string?>
 local function walk_dir(path, tx, opts, depth)
-    return async.async(function()
+    return async.run(function()
         local reader, err = path:read_dir().await()
         if not reader then
             return nil, err
@@ -431,7 +431,7 @@ local function walk_dir(path, tx, opts, depth)
                     break
                 end
                 if depth < (opts.max_depth or math.huge) and entry.type == "directory" then
-                    local f = async.async(function()
+                    local f = async.run(function()
                         return list.pack(walk_dir(entry.path, tx, opts, depth + 1).await())
                     end)
                     table.insert(futures, f)
@@ -454,7 +454,7 @@ end
 ---@return prefyl.channel.Receiver<prefyl.Path.WalkDirEntry>
 function M:walk_dir(opts)
     local tx, rx = channel.new()
-    async.async(function()
+    async.run(function()
         walk_dir(self, tx, opts or {}, 1).await()
         channel.close(tx)
     end)
@@ -463,7 +463,7 @@ end
 
 ---@return prefyl.async.Future<integer?, string?>: bytes?, err?
 function M:write(data)
-    return async.async(function()
+    return async.run(function()
         local fd, err = async.uv.fs_open(self.path, "w", 420).await() -- 0o644
         if not fd then
             return nil, err
@@ -483,7 +483,7 @@ end
 ---@param new prefyl.Path
 ---@return prefyl.async.Future<boolean?, string?>: success?, err?
 function M:link(new)
-    return async.async(function()
+    return async.run(function()
         local hardlink = false
         local symlink_flags = {} ---@type uv.aliases.fs_symlink_flags
         if IS_WINDOWS then
@@ -507,7 +507,7 @@ end
 
 ---@return prefyl.async.Future<boolean?, string?>
 function M:remove_link()
-    return async.async(function()
+    return async.run(function()
         local stat = self:stat().await()
         -- for hardlink
         if stat and stat.type == "file" then
@@ -524,7 +524,7 @@ end
 
 ---@return prefyl.async.Future<boolean?, string?>
 function M:remove_dir_all()
-    return async.async(function()
+    return async.run(function()
         if not self:exists().await() then
             return true
         end
@@ -540,7 +540,7 @@ function M:remove_dir_all()
             if not entry then
                 break
             end
-            local future = async.async(function()
+            local future = async.run(function()
                 if entry.type == "directory" then
                     return list.pack(entry.path:remove_dir_all().await())
                 elseif entry.type == "link" then
@@ -611,7 +611,7 @@ end)
 
 ---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:birthtime()
-    return async.async(function()
+    return async.run(function()
         local s = self:stat().await()
         return timestamp(s and s.birthtime)
     end)
@@ -619,7 +619,7 @@ end
 
 ---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:ctime()
-    return async.async(function()
+    return async.run(function()
         local s = self:stat().await()
         return timestamp(s and s.ctime)
     end)
@@ -627,7 +627,7 @@ end
 
 ---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:mtime()
-    return async.async(function()
+    return async.run(function()
         local s = self:stat().await()
         return timestamp(s and s.mtime)
     end)
@@ -635,7 +635,7 @@ end
 
 ---@return prefyl.async.Future<prefyl.Path.Timestamp>
 function M:atime()
-    return async.async(function()
+    return async.run(function()
         local s = self:stat().await()
         return timestamp(s and s.atime)
     end)

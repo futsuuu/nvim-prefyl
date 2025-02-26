@@ -84,9 +84,9 @@ test.group("tx rx", function()
     end)
 
     test.test("send while receiving", function()
-        async.block_on(async.async(function()
+        async.block_on(async.run(function()
             local tx, rx = M.new()
-            local f = async.async(function()
+            local f = async.run(function()
                 test.assert_eq(1, rx().await())
             end)
             assert(tx(1))
@@ -177,11 +177,11 @@ end
 test.test("closed", function()
     local tx, rx = M.new()
     local a = 0
-    async.async(function()
+    async.run(function()
         M.closed(tx).await()
         a = a + 1
     end)
-    async.async(function()
+    async.run(function()
         M.closed(rx).await()
         a = a + 1
     end)

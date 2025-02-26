@@ -118,11 +118,11 @@ local M = {}
 ---@param dir prefyl.Path
 ---@return prefyl.async.Future<prefyl.build.RuntimeDir>
 function M.new(dir)
-    return async.async(function()
+    return async.run(function()
         ---@type table<prefyl.build.RuntimeDir.DirKind, prefyl.async.Future<prefyl.Path[]>>
         local files = {}
         for name, opts in pairs(walk_opts) do
-            files[name] = async.async(function()
+            files[name] = async.run(function()
                 local walker = assert((dir / name):walk_dir(opts))
                 local result = {}
                 while true do

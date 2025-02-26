@@ -13,7 +13,7 @@ M.__index = M
 ---@param strip boolean
 ---@return prefyl.async.Future<prefyl.build.Out>
 function M.new(strip)
-    return async.async(function()
+    return async.run(function()
         local self = setmetatable({}, M)
         self.strip = strip
         self.dir = Path.stdpath.state / "prefyl" / (strip and "s" or "d")
@@ -27,7 +27,7 @@ end
 
 ---@return prefyl.async.Future<prefyl.Path>
 function M:finish()
-    return async.async(function()
+    return async.run(function()
         local last = assert(self.last)
         local link = Path.stdpath.state / "prefyl" / "startup"
         if link:exists().await() then
@@ -43,7 +43,7 @@ end
 function M:write(str)
     self.counter = self.counter + 1
     local counter = self.counter
-    return async.async(function()
+    return async.run(function()
         local s ---@type string
         if self.strip then
             s = string.dump(assert(loadstring(str)), true)

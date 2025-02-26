@@ -57,7 +57,7 @@ test.group("new", function()
         local future = M.new(vim.schedule)
         local a = 0
         for _ = 1, 1000 do
-            async.async(function()
+            async.run(function()
                 future.await()
                 a = a + 1
             end)

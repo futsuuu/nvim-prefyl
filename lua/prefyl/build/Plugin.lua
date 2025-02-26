@@ -19,7 +19,7 @@ local rt_configs = Chunk.new('local plugins = require("prefyl.runtime.config").p
 ---@param spec prefyl.build.Config.PluginSpec
 ---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new(spec)
-    return async.async(function()
+    return async.run(function()
         local self = setmetatable({}, M)
         self.spec = spec
         self.rtdirs = async
@@ -36,7 +36,7 @@ end
 ---@param paths prefyl.Path[]
 ---@return prefyl.async.Future<prefyl.build.Plugin>
 function M.new_std(spec, paths)
-    return async.async(function()
+    return async.run(function()
         local self = setmetatable({}, M)
         self.spec = spec
         self.rtdirs = async.join_list(vim.iter(paths):map(RuntimeDir.new):totable()).await()
@@ -50,7 +50,7 @@ end
 function M:initialize(out)
     local spec = self.spec
 
-    return async.async(function()
+    return async.run(function()
         if not self:is_enabled() then
             ---@cast spec prefyl.build.Config.PluginSpec
             return Chunk.new(("-- %q is disabled\n"):format(spec.name))
@@ -151,7 +151,7 @@ end
 ---@param disabled_plugins prefyl.Path[]
 ---@return prefyl.async.Future<prefyl.build.Chunk.Scope>
 function M:load_rtdirs(after, disabled_plugins)
-    return async.async(function()
+    return async.run(function()
         local plugin_files = vim.iter(self.rtdirs)
             :filter(function(rtdir) ---@param rtdir prefyl.build.RuntimeDir
                 return after == rtdir.dir:ends_with("after")
@@ -164,7 +164,7 @@ function M:load_rtdirs(after, disabled_plugins)
                 if not vim.list_contains(disabled_plugins, path) then
                     return nvim.source(path)
                 else
-                    return async.async(function()
+                    return async.run(function()
                         return Chunk.new(("-- %q is disabled\n"):format(path))
                     end)
                 end
