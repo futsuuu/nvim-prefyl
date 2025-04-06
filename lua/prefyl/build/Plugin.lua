@@ -294,7 +294,7 @@ function M:call_rt_hook(name)
     end
     return Chunk.if_(
         ("%s.%s"):format(config:get_output(), name),
-        Chunk.new(("pcall(%s.%s)\n"):format(config:get_output(), name), { inputs = { config } }),
+        Chunk.new(("%s.%s()\n"):format(config:get_output(), name), { inputs = { config } }),
         { inputs = { config } }
     )
 end
