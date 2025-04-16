@@ -26,8 +26,8 @@ return function(plugin_loader, name)
         plugin_loader()
 
         if
-            rawget(vim.api.nvim_get_commands({}), name) ~= nil
-            or rawget(vim.api.nvim_buf_get_commands(0, {}), name) ~= nil
+            vim.api.nvim_get_commands({})[name] ~= nil
+            or vim.api.nvim_buf_get_commands(0, {})[name] ~= nil
         then
             vim.api.nvim_cmd(cmd, {})
         end
