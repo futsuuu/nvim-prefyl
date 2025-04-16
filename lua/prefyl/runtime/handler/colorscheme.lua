@@ -2,10 +2,10 @@ local owners = {} ---@type table<string, function>
 
 vim.api.nvim_create_autocmd("ColorSchemePre", {
     callback = function(cx)
-        local loader = rawget(owners, cx.match)
+        local loader = owners[cx.match]
         if loader then
             loader()
-            rawset(owners, cx.match, nil)
+            owners[cx.match] = nil
         end
     end,
 })
@@ -14,5 +14,5 @@ vim.api.nvim_create_autocmd("ColorSchemePre", {
 ---@param name string
 ---@return function?
 return function(plugin_loader, name)
-    rawset(owners, name, plugin_loader)
+    owners[name] = plugin_loader
 end

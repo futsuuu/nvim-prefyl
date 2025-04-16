@@ -26,7 +26,7 @@ function M.build(strip)
 
         local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
         local s = str.dedent([[
-        rawset(package.preload, "prefyl.runtime", loadstring(%q, %q))
+        package.preload["prefyl.runtime"] = loadstring(%q, %q)
         vim.api.nvim_set_var("did_load_ftdetect", 1)
         vim.api.nvim_set_option_value("loadplugins", false, {})
         vim.api.nvim_set_option_value("packpath", %q, {})

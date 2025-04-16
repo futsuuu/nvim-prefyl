@@ -7,10 +7,10 @@ local autocmds = {} ---@type table<integer, true>
 local function callback(cx, plugin_loader)
     for _, au in ipairs(vim.api.nvim_get_autocmds({ event = cx.event })) do
         if au.id ~= nil then
-            rawset(autocmds, au.id, true)
+            autocmds[au.id] = true
         end
         if au.group ~= nil then
-            rawset(augroups, au.group, true)
+            augroups[au.group] = true
         end
     end
 
@@ -19,8 +19,8 @@ local function callback(cx, plugin_loader)
     for _, au in ipairs(vim.api.nvim_get_autocmds({ event = cx.event })) do
         if
             au.group ~= nil
-            and rawget(augroups, au.group) == nil
-            and rawget(autocmds, au.id) == nil
+            and augroups[au.group] == nil
+            and autocmds[au.id] == nil
         then
             vim.api.nvim_exec_autocmds(cx.event, {
                 group = au.group,
