@@ -1,15 +1,12 @@
 local async = require("prefyl.lib.async")
 
-local Base = require("prefyl.build.installer.Base")
-
 ---@class prefyl.build.installer.Git: prefyl.build.Installer
 ---@field private url string
 ---@field private dir prefyl.Path
----@field private command vim.SystemObj?
 ---@field private is_finished boolean?
 local M = {}
 ---@private
-M.__index = setmetatable(M, Base)
+M.__index = M
 
 ---@param dir prefyl.Path
 ---@param url string
@@ -21,43 +18,40 @@ function M.new(dir, url)
     return self
 end
 
----@return boolean
-function M:is_installed()
-    -- TODO: async
-    return async.block_on(self.dir:exists())
+function M:is_installed(callback)
+    async.run(function()
+        callback(self.dir:exists().await())
+    end)
 end
 
-function M:install()
-    self:_run_hooks_install()
-    if self.command then
-        error("the process still running!")
+function M:install(progress)
+    ---@param err string?
+    ---@param data string?
+    local function output_callback(err, data)
+        if err then
+            progress:error(err)
+        elseif data then
+            progress:log(data)
+        end
     end
-    self.command = vim.system(
+    vim.system(
         { "git", "clone", "--filter=blob:none", self.url, self.dir:tostring() },
         {
             text = true,
             detach = true,
-        }
-    )
-end
-
----@return prefyl.build.InstallProgress
-function M:progress()
-    local is_finished
-    if self.command then
-        is_finished = self.command:is_closing()
-        if is_finished then
-            self:_run_hooks_post_install()
-            self.command = nil
+            stdout = output_callback,
+            stderr = output_callback,
+        },
+        function(out)
+            if out.signal ~= 0 then
+                progress:error("process exited with signal " .. out.signal)
+            elseif out.code ~= 0 then
+                progress:error("process exited with status " .. out.code)
+            else
+                progress:success()
+            end
         end
-    else
-        is_finished = true
-    end
-    ---@type prefyl.build.InstallProgress
-    return {
-        title = self.command and table.concat(self.command.cmd, " ") or "",
-        is_finished = is_finished,
-    }
+    )
 end
 
 return M

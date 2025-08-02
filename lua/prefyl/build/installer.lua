@@ -1,44 +1,77 @@
----@class prefyl.build.InstallProgress
----@field title string
----@field log string?
----@field is_finished boolean
+local async = require("prefyl.lib.async")
 
 local Git = require("prefyl.build.installer.Git")
 
 local M = {}
 
+---@class prefyl.build.InstallProgress
+---@field private on_finish fun()
+local Progress = {}
+---@private
+Progress.__index = Progress
+
+---@param callbacks { on_finish: fun() }
+function Progress.new(callbacks)
+    return setmetatable({
+        on_finish = callbacks.on_finish,
+    }, Progress)
+end
+
+---@param msg string
+function Progress:log(msg)
+    local _ = msg
+end
+
+---@param msg string
+function Progress:error(msg)
+    local _ = msg
+    self.on_finish()
+end
+
+function Progress:success()
+    self.on_finish()
+end
+
 ---@param config prefyl.build.Config
+---@return prefyl.async.Future<nil>
 function M.install(config)
-    ---@type prefyl.build.Installer[]
-    local installers = vim.iter(config.plugins)
-        :map(function(_name, spec) ---@param spec prefyl.build.Config.PluginSpec
-            return spec.enabled and spec.url and Git.new(spec.dir, spec.url)
-        end)
-        :filter(function(i) ---@param i prefyl.build.Installer?
-            if i then
-                return not i:is_installed()
-            else
-                return false
+    return async.Future.new(function(finish)
+        local installers = {} ---@type prefyl.build.Installer[]
+        for _name, spec in pairs(config.plugins) do
+            if spec.enabled and spec.url then
+                table.insert(installers, Git.new(spec.dir, spec.url))
             end
-        end)
-        :totable()
-
-    local working = {} ---@type prefyl.build.Installer[]
-    local max_works = vim.uv.available_parallelism()
-
-    while 0 < #installers or 0 < #working do
-        for _ = 1, math.min(#installers, max_works - #working) do
-            local i = table.remove(installers) ---@type prefyl.build.Installer
-            i:install()
-            table.insert(working, i)
         end
-        vim.wait(250)
-        working = vim.iter(working)
-            :filter(function(i) ---@param i prefyl.build.Installer
-                return not i:progress().is_finished
+        local installer_count = #installers
+
+        local done = 0
+        local function install()
+            local installer = table.remove(installers) ---@type prefyl.build.Installer?
+            if not installer then
+                return
+            end
+            local function on_finish()
+                done = done + 1
+                if done == installer_count then
+                    finish()
+                else
+                    install()
+                end
+            end
+            installer:is_installed(function(res)
+                if res then
+                    on_finish()
+                else
+                    installer:install(Progress.new({
+                        on_finish = on_finish,
+                    }))
+                end
             end)
-            :totable()
-    end
+        end
+        for _ = 1, vim.uv.available_parallelism() do
+            install()
+        end
+    end)
 end
 
 return M

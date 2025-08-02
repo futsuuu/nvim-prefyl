@@ -20,7 +20,7 @@ function M.build(strip)
         local default_runtimepaths = nvim.default_runtimepaths().await()
         local config = Config.load(default_runtimepaths)
 
-        installer.install(config)
+        installer.install(config).await()
 
         local out = Out.new(strip).await()
 
