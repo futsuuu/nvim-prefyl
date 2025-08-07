@@ -27,13 +27,16 @@ function M.build(strip)
         local runtime_file = Path.prefyl_root / "lua" / "prefyl" / "runtime.lua"
         local s = str.dedent([[
         package.preload["prefyl.runtime"] = loadstring(%q, %q)
-        vim.api.nvim_set_var("did_load_ftdetect", 1)
         vim.api.nvim_set_option_value("loadplugins", false, {})
         vim.api.nvim_set_option_value("packpath", %q, {})
+        vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})
+        vim.api.nvim_cmd({ cmd = "source", args = { %q } }, {})
         ]]):format(
             dump(runtime_file, strip).await(),
             runtime_file:chunkname(),
-            vim.iter(nvim.default_packpaths()):map(tostring):join(",")
+            vim.iter(nvim.default_packpaths()):map(tostring):join(","),
+            Path.new(vim.env.VIMRUNTIME) / "filetype.lua",
+            Path.new(vim.env.VIMRUNTIME) / "syntax" / "syntax.vim"
         )
 
         s = s
